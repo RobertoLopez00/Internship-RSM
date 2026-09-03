@@ -1,0 +1,56 @@
+services:
+  sqlserver:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: clinica-dental-sql
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_SA_PASSWORD: "YourPassword123"
+    ports:
+      - "1433:1433"
+    volumes:
+      - sqlserver_data:/var/opt/mssql
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P \"$$MSSQL_SA_PASSWORD\" -C -Q 'SELECT 1' || exit 1"]
+      interval: 10s
+      timeout: 10s
+      retries: 20
+      start_period: 60s
+
+  mailpit:
+    image: axllent/mailpit:latest
+    container_name: clinica-dental-mail
+    ports:
+      - "8025:8025" # web UI: http://localhost:8025
+      - "1025:1025" # SMTP
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: clinica-dental-app
+    depends_on:
+      sqlserver:
+        condition: service_healthy
+      mailpit:
+        condition: service_started
+    environment:
+      ASPNETCORE_ENVIRONMENT: "Production"
+      ConnectionStrings__DefaultConnection: "Server=sqlserver,1433;Database=ClinicaDentalDb;User Id=sa;Password=YourPassword123;TrustServerCertificate=True;"
+      Jwt__Key: "${JWT_KEY:-change-this-to-a-random-secret-of-at-least-32-chars}"
+      Jwt__Issuer: "ClinicaDental"
+      Jwt__Audience: "ClinicaDental.Web"
+      BootstrapAdmin__Email: "${BOOTSTRAP_ADMIN_EMAIL:-admin@dentalcare.com}"
+      BootstrapAdmin__Password: "${BOOTSTRAP_ADMIN_PASSWORD:-ChangeMe123!}"
+      SeedSampleData: "${SEED_SAMPLE_DATA:-true}"
+      Email__Enabled: "${EMAIL_ENABLED:-true}"
+      Email__Host: "${EMAIL_HOST:-mailpit}"
+      Email__Port: "${EMAIL_PORT:-1025}"
+      Email__UseSsl: "${EMAIL_USE_SSL:-false}"
+      Email__Username: "${EMAIL_USERNAME:-}"
+      Email__Password: "${EMAIL_PASSWORD:-}"
+      Email__From: "${EMAIL_FROM:-noreply@dentalcare.com}"
+    ports:
+      - "8080:8080"
+
+volumes:
+  sqlserver_data:
