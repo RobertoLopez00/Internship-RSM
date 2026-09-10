@@ -1,6 +1,6 @@
 import { useState } from 'react'
 
-export function Spinner() { return <span className="inline-block w-5 h-5 border-[3px] border-slate-300 border-t-[#28749b] rounded-full animate-spin" role="status" aria-label="Loading" /> }
+export function Spinner() { return <span className="inline-block w-5 h-5 border-[3px] border-purple-200 border-t-fuchsia-500 rounded-full animate-spin" role="status" aria-label="Loading" /> }
 
 export function LoadingRow({ colSpan }) {
   return <tr><td colSpan={colSpan}><span className="flex items-center gap-2.5 text-[#60788a] py-6"><Spinner /> Loading…</span></td></tr>
@@ -37,13 +37,13 @@ export function StatusBadge({ status }) {
 
 export function ConfirmDialog({ title, message, confirmLabel = 'Delete', busy, onConfirm, onCancel }) {
   return (
-    <div className="fixed inset-0 bg-[#0f2438a6] grid place-items-center z-50" onMouseDown={onCancel} role="presentation">
-      <div className="bg-white rounded-2xl p-6 w-[min(380px,90vw)] shadow-[0_20px_60px_rgba(18,49,74,0.19)]" onMouseDown={(e) => e.stopPropagation()} role="alertdialog" aria-modal="true" aria-labelledby="confirm-title">
+    <div className="fixed inset-0 bg-[#e8e2f7]/60 backdrop-blur-sm grid place-items-center z-50" onMouseDown={onCancel} role="presentation">
+      <div className="bg-white/85 backdrop-blur-2xl border border-white/60 rounded-3xl p-6 w-[min(380px,90vw)] shadow-[0_26px_60px_rgba(139,92,246,0.25)]" onMouseDown={(e) => e.stopPropagation()} role="alertdialog" aria-modal="true" aria-labelledby="confirm-title">
         <h3 id="confirm-title" className="m-0 mb-2 text-lg">{title}</h3>
         <p className="text-[#60788a] m-0 mb-5">{message}</p>
         <div className="flex justify-end gap-2.5">
-          <button className="bg-[#eef2f5] text-[#12314a] border-0 rounded-lg px-4 py-2.5 cursor-pointer font-bold disabled:opacity-60" onClick={onCancel} disabled={busy}>Cancel</button>
-          <button className="bg-red-600 hover:bg-red-700 text-white border-0 rounded-lg px-4 py-2.5 cursor-pointer font-bold disabled:opacity-60" onClick={onConfirm} disabled={busy}>{busy ? 'Processing…' : confirmLabel}</button>
+          <button className="bg-white/70 text-[#12314a] border border-white/70 rounded-lg px-4 py-2.5 cursor-pointer font-bold disabled:opacity-60" onClick={onCancel} disabled={busy}>Cancel</button>
+          <button className="bg-red-500 hover:bg-red-600 text-white border-0 rounded-lg px-4 py-2.5 cursor-pointer font-bold disabled:opacity-60" onClick={onConfirm} disabled={busy}>{busy ? 'Processing…' : confirmLabel}</button>
         </div>
       </div>
     </div>

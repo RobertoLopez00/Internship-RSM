@@ -3,6 +3,13 @@ import { gsap } from 'gsap'
 
 // Rising water bubbles behind the hero — evokes a clean, fresh dental office.
 // Animated with GSAP in an infinite loop; respects prefers-reduced-motion and hides on mobile via CSS.
+// Pastel/vibrant droplet palette — rose, violet, sky — for the light "liquid glass" backdrop.
+const DROP_COLORS = [
+  'rgba(244,114,182,0.4)', // rose
+  'rgba(192,132,252,0.4)', // violet
+  'rgba(125,211,252,0.4)', // sky
+]
+
 const BUBBLES = Array.from({ length: 24 }).map((_, i) => {
   const size = 16 + Math.round(Math.random() * 64) // 16 - 80 px
   const left = Math.round(Math.random() * 100)
@@ -10,7 +17,8 @@ const BUBBLES = Array.from({ length: 24 }).map((_, i) => {
   const delay = Math.random() * 8
   const drift = 20 + Math.random() * 40
   const opacity = 0.35 + Math.random() * 0.35
-  return { id: i, size, left, speed, delay, drift, opacity }
+  const color = DROP_COLORS[i % DROP_COLORS.length]
+  return { id: i, size, left, speed, delay, drift, opacity, color }
 })
 
 export default function HeroBubbles() {
@@ -63,8 +71,8 @@ export default function HeroBubbles() {
             height: b.size,
             left: `${b.left}%`,
             opacity: b.opacity,
-            background: 'radial-gradient(circle at 30% 30%, rgba(255,255,255,0.9), rgba(14,165,233,0.35) 55%, rgba(20,184,166,0.15) 100%)',
-            boxShadow: '0 0 12px rgba(14,165,233,0.15)',
+            background: `radial-gradient(circle at 30% 30%, rgba(255,255,255,0.95), ${b.color} 55%, rgba(255,255,255,0.1) 100%)`,
+            boxShadow: `0 0 16px ${b.color}`,
           }}
         />
       ))}

@@ -5,10 +5,10 @@ import { formatDateTime, Notice, Spinner } from './shared'
 const blankRecord = { medicalHistory: '', allergies: '', medications: '', observations: '' }
 const blankConsultation = { doctorId: '', consultationDate: '', notes: '', diagnosis: '' }
 
-const inputCls = "px-4 py-3 border border-sky-500/30 rounded-xl text-base font-sans focus:outline-none focus:border-sky-500 focus:bg-sky-500/5 focus:shadow-[0_0_0_3px_rgba(14,165,233,0.1)]"
-const ctaCls = "border-0 rounded-full px-5 py-3 font-bold cursor-pointer transition-transform hover:-translate-y-px bg-gradient-to-br from-sky-500 to-teal-500 text-white shadow-[0_12px_24px_rgba(20,184,166,0.22)] disabled:opacity-70 disabled:cursor-wait"
-const thCls = "text-left text-[#60788a] font-bold text-xs uppercase tracking-wide px-3 py-2.5 border-b-2 border-[#edf2f6] whitespace-nowrap"
-const tdCls = "px-3 py-3 border-b border-[#edf2f6] align-middle"
+const inputCls = "px-4 py-3 border border-purple-300/50 bg-white/60 rounded-xl text-base font-sans focus:outline-none focus:border-fuchsia-400 focus:bg-white/80 focus:shadow-[0_0_0_3px_rgba(217,70,239,0.12)]"
+const ctaCls = "border-0 rounded-full px-5 py-3 font-bold cursor-pointer transition-transform hover:-translate-y-px bg-gradient-to-br from-fuchsia-400 via-purple-400 to-sky-400 text-white shadow-[0_12px_28px_rgba(168,85,247,0.35)] disabled:opacity-70 disabled:cursor-wait"
+const thCls = "text-left text-[#7c5ea3] font-bold text-xs uppercase tracking-wide px-3 py-2.5 border-b-2 border-purple-100 whitespace-nowrap"
+const tdCls = "px-3 py-3 border-b border-purple-100/70 align-middle"
 
 export default function DentalRecordModal({ patient, canEdit, onClose }) {
   const [loading, setLoading] = useState(true)
@@ -52,7 +52,7 @@ export default function DentalRecordModal({ patient, canEdit, onClose }) {
     } catch (e) { setNotice({ type: 'error', text: e.message }) } finally { setAddingConsult(false) }
   }
 
-  return <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[1000] p-4" onMouseDown={onClose} role="presentation">
+  return <div className="fixed inset-0 bg-[#e8e2f7]/60 backdrop-blur-sm flex items-center justify-center z-[1000] p-4" onMouseDown={onClose} role="presentation">
     <div className="bg-white rounded-3xl max-w-[640px] w-[94vw] max-h-[90vh] overflow-y-auto shadow-[0_20px_60px_rgba(0,0,0,0.3)]" onMouseDown={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
       <div className="flex items-center justify-between px-7 pt-7 mb-5">
         <h2 className="m-0 text-2xl text-[#12314a]">Dental record · {patient.firstName} {patient.lastName}</h2>
@@ -73,7 +73,7 @@ export default function DentalRecordModal({ patient, canEdit, onClose }) {
           <thead><tr><th className={thCls}>Date</th><th className={thCls}>Doctor</th><th className={thCls}>Diagnosis</th><th className={thCls}>Notes</th></tr></thead>
           <tbody>
             {(!record || record.consultations?.length === 0) && <tr><td colSpan={4} className="text-[#8a9cab] py-6 text-center">No consultations recorded yet.</td></tr>}
-            {record?.consultations?.slice().sort((a, b) => new Date(b.consultationDate) - new Date(a.consultationDate)).map((c) => <tr key={c.id} className="hover:bg-[#f9fbfd]">
+            {record?.consultations?.slice().sort((a, b) => new Date(b.consultationDate) - new Date(a.consultationDate)).map((c) => <tr key={c.id} className="hover:bg-white/50">
               <td className={tdCls}>{formatDateTime(c.consultationDate)}</td><td className={tdCls}>Dr. {c.doctor?.name} {c.doctor?.lastName}</td><td className={tdCls}>{c.diagnosis || '—'}</td><td className={tdCls}>{c.notes}</td>
             </tr>)}
           </tbody>
