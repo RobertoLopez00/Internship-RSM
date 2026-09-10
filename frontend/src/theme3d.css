@@ -1,9 +1,9 @@
 /* Immersive 3D layer — perspective, depth, tilt. Pure CSS, additive to App.css. */
 
 :root {
-  --depth-shadow-sm: 0 10px 20px rgba(15, 23, 42, 0.10), 0 2px 6px rgba(15, 23, 42, 0.08);
-  --depth-shadow-md: 0 24px 48px rgba(15, 23, 42, 0.16), 0 6px 16px rgba(15, 23, 42, 0.10);
-  --depth-shadow-lg: 0 40px 80px rgba(15, 23, 42, 0.22), 0 12px 28px rgba(15, 23, 42, 0.14);
+  --depth-shadow-sm: 0 10px 20px rgba(0, 0, 0, 0.35), 0 2px 6px rgba(0, 0, 0, 0.25);
+  --depth-shadow-md: 0 24px 48px rgba(0, 0, 0, 0.45), 0 6px 16px rgba(0, 0, 0, 0.3);
+  --depth-shadow-lg: 0 40px 100px rgba(0, 0, 0, 0.55), 0 12px 28px rgba(0, 0, 0, 0.35), 0 0 40px rgba(103, 232, 249, 0.08);
   --tilt-ease: cubic-bezier(0.22, 1, 0.36, 1);
   /* Spring-like easing (Emil Kowalski style: quick settle, slight overshoot) */
   --spring-ease: cubic-bezier(0.34, 1.56, 0.64, 1);
@@ -25,6 +25,11 @@
   transform: rotateX(var(--rx)) rotateY(var(--ry)) translateZ(var(--tz));
   transition: transform 0.5s var(--tilt-ease), box-shadow 0.4s ease;
   will-change: transform;
+  /* Chromium/WebKit render seams across backdrop-filter blur when the blurred element itself
+     carries a 3D transform. Forcing its own compositing layer with backface-visibility avoids it. */
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  isolation: isolate;
 }
 
 .tilt-card.tilt-active {
@@ -79,15 +84,9 @@
 
 .hero-card.tilt-card {
   transform-origin: center;
-}
-
-.hero-card.tilt-card li {
-  transform: translateZ(var(--tz, 0px));
-  transition: transform 0.4s var(--tilt-ease);
-}
-
-.hero-card.tilt-card:hover li {
-  transform: translateZ(20px);
+  /* No child needs its own depth here, so drop preserve-3d — combined with backdrop-blur it's
+     what causes Chromium to render a diagonal seam across the card while rotating. */
+  transform-style: flat;
 }
 
 /* Buttons: spring-like micro-interactions (hover lift, press squash, ripple) */
@@ -161,7 +160,7 @@
 
 /* Reduced motion: kill all 3D motion, keep flat design */
 @media (prefers-reduced-motion: reduce) {
-  .tilt-card, .rise-3d, .hero-card.tilt-card li,
+  .tilt-card, .rise-3d,
   .cta, .cta-small, .secondary, .btn-danger, .btn-plain, .icon-btn, .text-button, .login-back,
   .ripple-btn::after {
     animation: none !important;

@@ -5,10 +5,10 @@ import { formatDateTime, Notice, Spinner } from './shared'
 const blankRecord = { medicalHistory: '', allergies: '', medications: '', observations: '' }
 const blankConsultation = { doctorId: '', consultationDate: '', notes: '', diagnosis: '' }
 
-const inputCls = "px-4 py-3 border border-sky-500/30 rounded-xl text-base font-sans focus:outline-none focus:border-sky-500 focus:bg-sky-500/5 focus:shadow-[0_0_0_3px_rgba(14,165,233,0.1)]"
-const ctaCls = "border-0 rounded-full px-5 py-3 font-bold cursor-pointer transition-transform hover:-translate-y-px bg-gradient-to-br from-sky-500 to-teal-500 text-white shadow-[0_12px_24px_rgba(20,184,166,0.22)] disabled:opacity-70 disabled:cursor-wait"
-const thCls = "text-left text-[#60788a] font-bold text-xs uppercase tracking-wide px-3 py-2.5 border-b-2 border-[#edf2f6] whitespace-nowrap"
-const tdCls = "px-3 py-3 border-b border-[#edf2f6] align-middle"
+const inputCls = "px-4 py-3 border border-white/20 rounded-xl text-base font-sans bg-white/10 text-white placeholder-white/40 backdrop-blur-sm focus:outline-none focus:border-cyan-300/50 focus:bg-white/15 focus:shadow-[0_0_0_3px_rgba(103,232,249,0.15)]"
+const ctaCls = "border-0 rounded-full px-5 py-3 font-bold cursor-pointer transition-transform hover:-translate-y-px bg-gradient-to-br from-indigo-400 to-cyan-400 text-slate-950 shadow-[0_0_24px_rgba(103,232,249,0.35)] disabled:opacity-70 disabled:cursor-wait"
+const thCls = "text-left text-white/50 font-bold text-xs uppercase tracking-wide px-3 py-2.5 border-b-2 border-white/15 whitespace-nowrap"
+const tdCls = "px-3 py-3 border-b border-white/10 align-middle text-white/85"
 
 export default function DentalRecordModal({ patient, canEdit, onClose }) {
   const [loading, setLoading] = useState(true)
@@ -52,35 +52,35 @@ export default function DentalRecordModal({ patient, canEdit, onClose }) {
     } catch (e) { setNotice({ type: 'error', text: e.message }) } finally { setAddingConsult(false) }
   }
 
-  return <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[1000] p-4" onMouseDown={onClose} role="presentation">
-    <div className="bg-white rounded-3xl max-w-[640px] w-[94vw] max-h-[90vh] overflow-y-auto shadow-[0_20px_60px_rgba(0,0,0,0.3)]" onMouseDown={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
+  return <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-[1000] p-4" onMouseDown={onClose} role="presentation">
+    <div className="bg-slate-900/70 backdrop-blur-2xl border border-white/20 rounded-3xl max-w-[640px] w-[94vw] max-h-[90vh] overflow-y-auto shadow-[0_40px_100px_rgba(0,0,0,0.6)]" onMouseDown={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
       <div className="flex items-center justify-between px-7 pt-7 mb-5">
-        <h2 className="m-0 text-2xl text-[#12314a]">Dental record · {patient.firstName} {patient.lastName}</h2>
-        <button className="bg-none border-0 text-[#5d7388] cursor-pointer p-0 w-10 h-10 flex items-center justify-center hover:text-[#12314a] text-2xl" onClick={onClose} aria-label="Close">×</button>
+        <h2 className="m-0 text-2xl text-white">Dental record · {patient.firstName} {patient.lastName}</h2>
+        <button className="bg-none border-0 text-white/50 cursor-pointer p-0 w-10 h-10 flex items-center justify-center hover:text-white text-2xl" onClick={onClose} aria-label="Close">×</button>
       </div>
       <div className="px-7"><Notice notice={notice} /></div>
       {loading ? <p className="px-7 pb-7"><Spinner /> Loading dental record…</p> : <>
         <form className="px-7 pb-7 flex flex-col gap-4" onSubmit={save}>
-          <label className="flex flex-col gap-1 text-sm font-semibold text-[#38566b]">Medical history<textarea className={inputCls} rows="2" value={form.medicalHistory} onChange={(e) => setForm({ ...form, medicalHistory: e.target.value })} disabled={!canEdit} /></label>
-          <label className="flex flex-col gap-1 text-sm font-semibold text-[#38566b]">Allergies<textarea className={inputCls} rows="2" value={form.allergies} onChange={(e) => setForm({ ...form, allergies: e.target.value })} disabled={!canEdit} /></label>
-          <label className="flex flex-col gap-1 text-sm font-semibold text-[#38566b]">Medications<textarea className={inputCls} rows="2" value={form.medications} onChange={(e) => setForm({ ...form, medications: e.target.value })} disabled={!canEdit} /></label>
-          <label className="flex flex-col gap-1 text-sm font-semibold text-[#38566b]">Observations<textarea className={inputCls} rows="2" value={form.observations} onChange={(e) => setForm({ ...form, observations: e.target.value })} disabled={!canEdit} /></label>
+          <label className="flex flex-col gap-1 text-sm font-semibold text-white/70">Medical history<textarea className={inputCls} rows="2" value={form.medicalHistory} onChange={(e) => setForm({ ...form, medicalHistory: e.target.value })} disabled={!canEdit} /></label>
+          <label className="flex flex-col gap-1 text-sm font-semibold text-white/70">Allergies<textarea className={inputCls} rows="2" value={form.allergies} onChange={(e) => setForm({ ...form, allergies: e.target.value })} disabled={!canEdit} /></label>
+          <label className="flex flex-col gap-1 text-sm font-semibold text-white/70">Medications<textarea className={inputCls} rows="2" value={form.medications} onChange={(e) => setForm({ ...form, medications: e.target.value })} disabled={!canEdit} /></label>
+          <label className="flex flex-col gap-1 text-sm font-semibold text-white/70">Observations<textarea className={inputCls} rows="2" value={form.observations} onChange={(e) => setForm({ ...form, observations: e.target.value })} disabled={!canEdit} /></label>
           {canEdit && <button className={ctaCls} disabled={saving}>{saving ? 'Saving…' : 'Save dental record'}</button>}
         </form>
 
-        <h3 className="px-7">Consultation history</h3>
+        <h3 className="px-7 text-white">Consultation history</h3>
         <div className="overflow-x-auto px-7"><table className="w-full border-collapse text-sm">
           <thead><tr><th className={thCls}>Date</th><th className={thCls}>Doctor</th><th className={thCls}>Diagnosis</th><th className={thCls}>Notes</th></tr></thead>
           <tbody>
-            {(!record || record.consultations?.length === 0) && <tr><td colSpan={4} className="text-[#8a9cab] py-6 text-center">No consultations recorded yet.</td></tr>}
-            {record?.consultations?.slice().sort((a, b) => new Date(b.consultationDate) - new Date(a.consultationDate)).map((c) => <tr key={c.id} className="hover:bg-[#f9fbfd]">
+            {(!record || record.consultations?.length === 0) && <tr><td colSpan={4} className="text-white/40 py-6 text-center">No consultations recorded yet.</td></tr>}
+            {record?.consultations?.slice().sort((a, b) => new Date(b.consultationDate) - new Date(a.consultationDate)).map((c) => <tr key={c.id} className="hover:bg-white/5">
               <td className={tdCls}>{formatDateTime(c.consultationDate)}</td><td className={tdCls}>Dr. {c.doctor?.name} {c.doctor?.lastName}</td><td className={tdCls}>{c.diagnosis || '—'}</td><td className={tdCls}>{c.notes}</td>
             </tr>)}
           </tbody>
         </table></div>
 
         {canEdit && record && <form className="px-7 pb-7 pt-4 flex flex-col gap-4" onSubmit={saveConsultation}>
-          <h3 className="m-0">New consultation</h3>
+          <h3 className="m-0 text-white">New consultation</h3>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <select className={inputCls} value={consultForm.doctorId} onChange={(e) => setConsultForm({ ...consultForm, doctorId: e.target.value })} required>
               <option value="">Select doctor</option>{doctors.map((d) => <option key={d.id} value={d.id}>Dr. {d.name} {d.lastName}</option>)}
@@ -91,7 +91,7 @@ export default function DentalRecordModal({ patient, canEdit, onClose }) {
           <textarea className={inputCls} placeholder="Consultation notes" rows="3" value={consultForm.notes} onChange={(e) => setConsultForm({ ...consultForm, notes: e.target.value })} required />
           <button className={ctaCls} disabled={addingConsult}>{addingConsult ? 'Saving…' : 'Add consultation'}</button>
         </form>}
-        {canEdit && !record && <p className="px-7 pb-7 bg-green-100 text-green-800 mx-7 rounded-xl p-3">Save the dental record first to be able to log consultations.</p>}
+        {canEdit && !record && <p className="px-7 pb-7 bg-emerald-400/15 text-emerald-200 mx-7 rounded-xl p-3">Save the dental record first to be able to log consultations.</p>}
       </>}
     </div>
   </div>

@@ -62,11 +62,11 @@ export default function TimeSlotPicker({ doctorId, value, onChange }) {
 
   return (
     <div className="flex flex-col gap-3">
-      <label className="text-sm font-semibold text-[#12314a]">
+      <label className="text-sm font-semibold text-white/85">
         Date
         <input
           type="date"
-          className="w-full box-border mt-1.5 px-4 py-3 border border-sky-500/30 rounded-xl text-base"
+          className="w-full box-border mt-1.5 px-4 py-3 border border-white/20 bg-white/10 text-white rounded-xl text-base backdrop-blur-sm focus:outline-none focus:border-cyan-300/50"
           min={todayISO()}
           value={date}
           onChange={(e) => setDate(e.target.value)}
@@ -75,17 +75,17 @@ export default function TimeSlotPicker({ doctorId, value, onChange }) {
       </label>
 
       {!doctorId ? (
-        <p className="text-sm text-[#5d7388]">Select a specialist to see available times.</p>
+        <p className="text-sm text-white/50">Select a specialist to see available times.</p>
       ) : loading ? (
-        <p className="text-sm text-[#5d7388]">Loading availability…</p>
+        <p className="text-sm text-white/50">Loading availability…</p>
       ) : error ? (
-        <p className="text-sm text-red-600">{error}</p>
+        <p className="text-sm text-red-300">{error}</p>
       ) : (
         <>
-          <div className="flex items-center gap-4 text-xs text-[#5d7388]">
-            <span className="inline-flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-teal-500 inline-block" /> Available</span>
-            <span className="inline-flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-slate-300 inline-block" /> Booked</span>
-            <span className="inline-flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-sky-500 inline-block" /> Selected</span>
+          <div className="flex items-center gap-4 text-xs text-white/50">
+            <span className="inline-flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-cyan-400 inline-block" /> Available</span>
+            <span className="inline-flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-white/20 inline-block" /> Booked</span>
+            <span className="inline-flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-indigo-400 inline-block" /> Selected</span>
           </div>
           <div className="grid grid-cols-4 sm:grid-cols-5 gap-2 max-h-56 overflow-y-auto p-1">
             {SLOTS.map((slot) => {
@@ -102,10 +102,10 @@ export default function TimeSlotPicker({ doctorId, value, onChange }) {
                   className={
                     'text-sm font-semibold rounded-lg py-2 transition-colors ' +
                     (selected
-                      ? 'bg-gradient-to-br from-sky-500 to-teal-500 text-white shadow-[0_6px_14px_rgba(20,184,166,0.3)]'
+                      ? 'bg-gradient-to-br from-indigo-400 to-cyan-400 text-slate-950 shadow-[0_0_16px_rgba(103,232,249,0.4)]'
                       : disabled
-                        ? 'bg-slate-100 text-slate-300 line-through cursor-not-allowed'
-                        : 'bg-teal-50 text-teal-800 hover:bg-teal-100 cursor-pointer border border-teal-200/70')
+                        ? 'bg-white/5 text-white/25 line-through cursor-not-allowed'
+                        : 'bg-cyan-400/10 text-cyan-200 hover:bg-cyan-400/20 cursor-pointer border border-cyan-300/20')
                   }
                 >{slot.label}</button>
               )

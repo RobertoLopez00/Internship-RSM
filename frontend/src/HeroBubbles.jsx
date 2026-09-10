@@ -9,7 +9,7 @@ const BUBBLES = Array.from({ length: 24 }).map((_, i) => {
   const speed = size > 50 ? 12 + Math.random() * 5 : 5 + Math.random() * 5 // bigger = slower
   const delay = Math.random() * 8
   const drift = 20 + Math.random() * 40
-  const opacity = 0.35 + Math.random() * 0.35
+  const opacity = 0.45 + Math.random() * 0.45
   return { id: i, size, left, speed, delay, drift, opacity }
 })
 
@@ -54,7 +54,7 @@ export default function HeroBubbles() {
       {BUBBLES.map((b) => (
         <span
           key={b.id}
-          className="hero-bubble absolute bottom-0 rounded-full border border-white/40"
+          className="hero-bubble absolute bottom-0 rounded-full border border-cyan-200/30"
           data-speed={b.speed}
           data-delay={b.delay}
           data-drift={b.drift}
@@ -63,8 +63,8 @@ export default function HeroBubbles() {
             height: b.size,
             left: `${b.left}%`,
             opacity: b.opacity,
-            background: 'radial-gradient(circle at 30% 30%, rgba(255,255,255,0.9), rgba(14,165,233,0.35) 55%, rgba(20,184,166,0.15) 100%)',
-            boxShadow: '0 0 12px rgba(14,165,233,0.15)',
+            background: 'radial-gradient(circle at 30% 30%, rgba(255,255,255,0.95), rgba(129,140,248,0.5) 50%, rgba(103,232,249,0.2) 100%)',
+            boxShadow: '0 0 24px rgba(103,232,249,0.35), 0 0 6px rgba(255,255,255,0.4)',
           }}
         />
       ))}
