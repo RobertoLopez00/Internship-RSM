@@ -1,20 +1,57 @@
-import { authorizedFetch } from './auth'
+import { authorizedFetch, SessionExpiredError } from './auth'
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5097/api'
 
-async function extractError(response) {
-  try { const body = await response.json(); return body?.message || `Error ${response.status}` } catch { return `Error ${response.status}` }
+const STATUS_MESSAGES = {
+  400: 'The information provided is invalid. Please check the form and try again.',
+  401: 'Your session has expired or you are not signed in.',
+  403: "You don't have permission to do this.",
+  404: 'The requested resource was not found.',
+  409: 'This conflicts with existing data. Please refresh and try again.',
+  422: 'The information provided is invalid. Please check the form and try again.',
+  429: 'Too many requests. Please wait a moment and try again.',
 }
 
-async function publicRequest(path, options) {
-  const response = await fetch(`${API_BASE_URL}${path}`, options)
-  if (!response.ok) throw new Error(await extractError(response))
+export class ApiError extends Error {
+  constructor(message, { status, path, cause } = {}) {
+    super(message)
+    this.name = 'ApiError'
+    this.status = status
+    this.path = path
+    this.cause = cause
+  }
+}
+
+async function extractError(response, path) {
+  let serverMessage = null
+  try { serverMessage = (await response.json())?.message || null } catch { /* body not JSON or empty */ }
+  const fallback = STATUS_MESSAGES[response.status] || (response.status >= 500 ? 'The server had a problem processing this request. Please try again shortly.' : `Something went wrong (${response.status}).`)
+  const message = serverMessage || fallback
+  console.error(`[api] ${response.status} ${path}`, serverMessage ? { serverMessage } : '(no server message)')
+  return new ApiError(message, { status: response.status, path })
+}
+
+function networkError(path, cause) {
+  console.error(`[api] network error on ${path}`, cause)
+  return new ApiError("We couldn't reach the server. Check your connection and try again.", { path, cause })
+}
+
+async function publicRequest(path, options = {}) {
+  let response
+  try { response = await fetch(`${API_BASE_URL}${path}`, { ...options, headers: { 'Content-Type': 'application/json', ...options.headers } }) }
+  catch (cause) { throw networkError(path, cause) }
+  if (!response.ok) throw await extractError(response, path)
   return response.status === 204 ? null : response.json()
 }
 
 async function request(path, options = {}) {
-  const response = await authorizedFetch(path, { ...options, headers: { 'Content-Type': 'application/json', ...options.headers } })
-  if (!response.ok) throw new Error(await extractError(response))
+  let response
+  try { response = await authorizedFetch(path, { ...options, headers: { 'Content-Type': 'application/json', ...options.headers } }) }
+  catch (cause) {
+    if (cause instanceof SessionExpiredError) throw cause
+    throw networkError(path, cause)
+  }
+  if (!response.ok) throw await extractError(response, path)
   return response.status === 204 ? null : response.json()
 }
 
@@ -24,6 +61,7 @@ const asJson = (method, body) => ({ method, body: JSON.stringify(body) })
 export const getDoctorsPublic = () => publicRequest('/Doctors')
 export const getServicesPublic = () => publicRequest('/services')
 export const registerPatient = (data) => publicRequest('/auth/register-patient', asJson('POST', data))
+export const getAvailability = (doctorId, date) => publicRequest(`/Appointments/availability?doctorId=${doctorId}&date=${date}`)
 
 // Patients
 export const getPatients = () => request('/Patients')

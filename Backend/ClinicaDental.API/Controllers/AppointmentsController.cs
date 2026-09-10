@@ -33,6 +33,24 @@ public class AppointmentsController : ControllerBase
         return Ok(appointments);
     }
 
+    [HttpGet("availability")]
+    [AllowAnonymous]
+    public async Task<IActionResult> GetAvailability([FromQuery] Guid doctorId, [FromQuery] DateOnly date)
+    {
+        if (!await _context.Doctors.AnyAsync(x => x.Id == doctorId && x.IsActive)) return NotFound(new { message = "Doctor not found." });
+
+        // Query a window wide enough to cover any client timezone offset either side of the given calendar day,
+        // then let the client filter/format in its own local time.
+        var dayStart = date.ToDateTime(TimeOnly.MinValue).AddDays(-1);
+        var dayEnd = date.ToDateTime(TimeOnly.MinValue).AddDays(2);
+        var bookedTimes = await _context.Appointments
+            .Where(x => x.DoctorId == doctorId && x.AppointmentDate >= dayStart && x.AppointmentDate < dayEnd && x.Status != AppointmentStatuses.Cancelled && x.Status != AppointmentStatuses.NoShow)
+            .Select(x => x.AppointmentDate)
+            .ToListAsync();
+
+        return Ok(new { bookedSlots = bookedTimes.Select(t => DateTime.SpecifyKind(t, DateTimeKind.Utc).ToString("O")) });
+    }
+
     [HttpGet("{id:guid}")]
     [Authorize]
     public async Task<IActionResult> GetById(Guid id)

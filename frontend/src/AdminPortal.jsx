@@ -7,6 +7,7 @@ import DoctorsPanel from './admin/DoctorsPanel'
 import ServicesPanel from './admin/ServicesPanel'
 import TreatmentsPanel from './admin/TreatmentsPanel'
 import UsersPanel from './admin/UsersPanel'
+import './theme3d.css'
 
 const MODULES = ['Overview', 'Patients', 'Appointments', 'Doctors', 'Services', 'Treatments', 'Users']
 
@@ -26,18 +27,39 @@ export default function AdminPortal({ user, onExit, onLogout }) {
 
   const handleLogout = async () => { await logout(); onLogout() }
 
-  if (sessionExpired) return <main className="login-shell"><div className="login-card"><h1>Session expired</h1><p>Your session expired. Please sign in again to continue.</p><button className="cta" onClick={onLogout}>Go to sign in</button></div></main>
+  if (sessionExpired) return (
+    <main className="min-h-screen grid place-items-center bg-gradient-to-br from-sky-50 to-teal-50/40 p-6">
+      <div className="w-[min(390px,100%)] box-border bg-white rounded-3xl p-9 shadow-[0_20px_60px_rgba(18,49,74,0.13)] flex flex-col gap-4">
+        <h1 className="m-0 text-3xl text-[#12314a]">Session expired</h1>
+        <p className="m-0 text-[#60788a]">Your session expired. Please sign in again to continue.</p>
+        <button className="border-0 rounded-full px-5 py-3 font-bold cursor-pointer bg-gradient-to-br from-sky-500 to-teal-500 text-white shadow-[0_12px_24px_rgba(20,184,166,0.22)]" onClick={onLogout}>Go to sign in</button>
+      </div>
+    </main>
+  )
 
   return (
-    <main className="admin-shell">
-      <aside className="admin-sidebar">
-        <button className="admin-brand" onClick={onExit}>DentalCare <small>← Public site</small></button>
-        <p>{user?.displayName} · {user?.role}</p>
-        {allowed.map((x) => <button key={x} className={tab === x ? 'active' : ''} onClick={() => setTab(x)}>{x}</button>)}
-        <button onClick={handleLogout}>Sign out</button>
+    <main className="admin-shell min-h-screen grid grid-cols-1 md:grid-cols-[245px_1fr] bg-[#f6f9fc] text-[#12314a]">
+      <aside className="admin-sidebar px-4.5 py-7 bg-[#12314a] text-[#ddecf7] flex md:flex-col flex-row items-stretch gap-1.5 overflow-auto">
+        <button className="border-0 bg-transparent text-white text-left text-lg font-extrabold mb-7 cursor-pointer shrink-0 md:mb-7 min-w-[115px] md:min-w-0" onClick={onExit}>
+          DentalCare <small className="block text-[#8fb2ca] text-xs mt-2 font-normal">← Public site</small>
+        </button>
+        <p className="hidden md:block text-xs tracking-widest text-[#8fb2ca] mx-2.5 mb-2">{user?.displayName} · {user?.role}</p>
+        {allowed.map((x) => (
+          <button
+            key={x}
+            className={`border-0 text-left px-3 py-2.5 rounded-lg cursor-pointer font-semibold shrink-0 ${tab === x ? 'bg-[#1e526f] text-white' : 'bg-transparent text-inherit hover:bg-[#1e526f] hover:text-white'}`}
+            onClick={() => setTab(x)}
+          >{x}</button>
+        ))}
+        <button className="border-0 bg-transparent text-left px-3 py-2.5 rounded-lg cursor-pointer font-semibold text-inherit hover:bg-[#1e526f] hover:text-white shrink-0" onClick={handleLogout}>Sign out</button>
       </aside>
-      <section className="admin-content">
-        <header><div><p className="section-label">Internal panel</p><h1>{tab}</h1></div></header>
+      <section className="admin-content scene-3d p-6 md:p-10 max-w-[1200px] w-full box-border">
+        <header className="flex items-center justify-between mb-7 flex-wrap gap-3">
+          <div>
+            <p className="text-sky-500 uppercase tracking-widest font-bold text-xs">Internal panel</p>
+            <h1 className="m-0 text-3xl">{tab}</h1>
+          </div>
+        </header>
         {tab === 'Overview' && <DashboardPanel canViewDashboard={[Roles.Admin, Roles.Receptionist].includes(user?.role)} />}
         {tab === 'Patients' && <PatientsPanel canEdit={[Roles.Admin, Roles.Receptionist].includes(user?.role)} canDelete={user?.role === Roles.Admin} />}
         {tab === 'Appointments' && <AppointmentsPanel canEdit={[Roles.Admin, Roles.Receptionist, Roles.Doctor].includes(user?.role)} canDelete={[Roles.Admin, Roles.Receptionist].includes(user?.role)} />}
