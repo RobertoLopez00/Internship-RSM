@@ -7,7 +7,13 @@ html {
 body {
   min-height: 100vh;
   font-family: system-ui, 'Segoe UI', Roboto, sans-serif;
-  background: linear-gradient(135deg, #f3fbff 0%, #edf6ff 35%, #f9fbff 100%);
+  background:
+    radial-gradient(ellipse 900px 600px at 8% 6%, rgba(232, 180, 255, 0.35), transparent 60%),
+    radial-gradient(ellipse 800px 700px at 95% 18%, rgba(147, 217, 255, 0.4), transparent 60%),
+    radial-gradient(ellipse 700px 600px at 20% 92%, rgba(255, 200, 220, 0.32), transparent 60%),
+    radial-gradient(ellipse 900px 700px at 88% 96%, rgba(180, 200, 255, 0.32), transparent 60%),
+    linear-gradient(160deg, #fbfdff 0%, #f5f8ff 45%, #fdf7fb 100%);
+  background-attachment: fixed;
 }
 
 #root {

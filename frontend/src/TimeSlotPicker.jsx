@@ -66,7 +66,7 @@ export default function TimeSlotPicker({ doctorId, value, onChange }) {
         Date
         <input
           type="date"
-          className="w-full box-border mt-1.5 px-4 py-3 border border-sky-500/30 rounded-xl text-base"
+          className="w-full box-border mt-1.5 px-4 py-3 border border-purple-300/50 bg-white/60 rounded-xl text-base"
           min={todayISO()}
           value={date}
           onChange={(e) => setDate(e.target.value)}
@@ -83,9 +83,9 @@ export default function TimeSlotPicker({ doctorId, value, onChange }) {
       ) : (
         <>
           <div className="flex items-center gap-4 text-xs text-[#5d7388]">
-            <span className="inline-flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-teal-500 inline-block" /> Available</span>
+            <span className="inline-flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-fuchsia-400 inline-block" /> Available</span>
             <span className="inline-flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-slate-300 inline-block" /> Booked</span>
-            <span className="inline-flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-sky-500 inline-block" /> Selected</span>
+            <span className="inline-flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-purple-500 inline-block" /> Selected</span>
           </div>
           <div className="grid grid-cols-4 sm:grid-cols-5 gap-2 max-h-56 overflow-y-auto p-1">
             {SLOTS.map((slot) => {
@@ -102,10 +102,10 @@ export default function TimeSlotPicker({ doctorId, value, onChange }) {
                   className={
                     'text-sm font-semibold rounded-lg py-2 transition-colors ' +
                     (selected
-                      ? 'bg-gradient-to-br from-sky-500 to-teal-500 text-white shadow-[0_6px_14px_rgba(20,184,166,0.3)]'
+                      ? 'bg-gradient-to-br from-fuchsia-400 via-purple-400 to-sky-400 text-white shadow-[0_6px_16px_rgba(168,85,247,0.35)]'
                       : disabled
                         ? 'bg-slate-100 text-slate-300 line-through cursor-not-allowed'
-                        : 'bg-teal-50 text-teal-800 hover:bg-teal-100 cursor-pointer border border-teal-200/70')
+                        : 'bg-white/60 text-purple-800 hover:bg-white/90 cursor-pointer border border-purple-200/70')
                   }
                 >{slot.label}</button>
               )
