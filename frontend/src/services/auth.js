@@ -11,8 +11,18 @@ export const clearSession = () => [TOKEN_KEY, REFRESH_KEY, USER_KEY].forEach((ke
 const saveSession = (data) => { localStorage.setItem(TOKEN_KEY, data.accessToken); localStorage.setItem(REFRESH_KEY, data.refreshToken); localStorage.setItem(USER_KEY, JSON.stringify(data.user)); return data.user }
 
 export async function login(email, password) {
-  const response = await fetch(`${API_BASE_URL}/auth/login`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, password }) })
-  if (!response.ok) throw new Error('Invalid credentials')
+  let response
+  try {
+    response = await fetch(`${API_BASE_URL}/auth/login`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, password }) })
+  } catch (cause) {
+    console.error('[auth] network error on /auth/login', cause)
+    throw new Error("We couldn't reach the server. Check your connection and try again.")
+  }
+  if (!response.ok) {
+    if (response.status === 401) throw new Error('Invalid email or password.')
+    console.error(`[auth] ${response.status} on /auth/login`)
+    throw new Error(response.status >= 500 ? 'The server had a problem signing you in. Please try again shortly.' : `Sign-in failed (${response.status}).`)
+  }
   return saveSession(await response.json())
 }
 
