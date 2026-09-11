@@ -1,0 +1,133 @@
+/* Design tokens for the "Home" (Stitch/Figma) landing page.
+   Fonts are loaded via <link> tags in index.html (see there) since @import
+   for external URLs must precede all other rules once Tailwind's own
+   @theme/@layer output is injected here. */
+@theme {
+  --color-surface-variant: #d3e4fe;
+  --color-outline: #74777e;
+  --color-on-primary: #ffffff;
+  --color-error-container: #ffdad6;
+  --color-surface-bright: #f8f9ff;
+  --color-tertiary: #001714;
+  --color-secondary-fixed: #c9e6ff;
+  --color-secondary-container: #39b8fd;
+  --color-on-tertiary: #ffffff;
+  --color-surface-dim: #cbdbf5;
+  --color-on-surface-variant: #43474d;
+  --color-on-tertiary-fixed-variant: #005048;
+  --color-on-secondary-container: #004666;
+  --color-on-primary-fixed-variant: #314863;
+  --color-inverse-surface: #213145;
+  --color-on-secondary-fixed-variant: #004c6e;
+  --color-on-error: #ffffff;
+  --color-outline-variant: #c3c6ce;
+  --color-on-background: #0b1c30;
+  --color-surface-container-lowest: #ffffff;
+  --color-surface-container-high: #dce9ff;
+  --color-primary-fixed-dim: #b0c9e8;
+  --color-secondary-fixed-dim: #89ceff;
+  --color-background: #f8f9ff;
+  --color-on-primary-fixed: #011d35;
+  --color-on-error-container: #93000a;
+  --color-primary: #001428;
+  --color-on-surface: #0b1c30;
+  --color-on-tertiary-container: #00a191;
+  --color-primary-fixed: #d1e4ff;
+  --color-on-secondary: #ffffff;
+  --color-on-primary-container: #7991af;
+  --color-on-tertiary-fixed: #00201c;
+  --color-tertiary-fixed: #71f8e4;
+  --color-inverse-primary: #b0c9e8;
+  --color-on-secondary-fixed: #001e2f;
+  --color-primary-container: #0f2942;
+  --color-inverse-on-surface: #eaf1ff;
+  --color-surface-container-highest: #d3e4fe;
+  --color-surface-container: #e5eeff;
+  --color-tertiary-fixed-dim: #4fdbc8;
+  --color-surface-container-low: #eff4ff;
+  --color-surface-tint: #49607c;
+  --color-tertiary-container: #002e28;
+  --color-surface: #f8f9ff;
+  --color-error: #ba1a1a;
+  --color-secondary: #006591;
+
+  --radius-DEFAULT: 0.25rem;
+  --radius-lg: 0.5rem;
+  --radius-xl: 0.75rem;
+  --radius-full: 9999px;
+
+  --spacing-space-xs: 0.25rem;
+  --spacing-space-sm: 0.5rem;
+  --spacing-gutter: 1.5rem;
+  --spacing-gutter-sm: 1rem;
+  --spacing-space-xl: 2.5rem;
+  --spacing-margin-sm: 1rem;
+  --spacing-space-lg: 1.5rem;
+  --spacing-space-md: 1rem;
+  --spacing-margin: 2rem;
+
+  --font-body-md: Inter, sans-serif;
+  --font-headline-lg: "Plus Jakarta Sans", sans-serif;
+  --font-body-lg: Inter, sans-serif;
+  --font-body-sm: Inter, sans-serif;
+  --font-headline-xl-mobile: "Plus Jakarta Sans", sans-serif;
+  --font-label-sm: Inter, sans-serif;
+  --font-label-md: Inter, sans-serif;
+  --font-title-md: "Plus Jakarta Sans", sans-serif;
+  --font-headline-lg-mobile: "Plus Jakarta Sans", sans-serif;
+  --font-headline-sm: "Plus Jakarta Sans", sans-serif;
+  --font-headline-md: "Plus Jakarta Sans", sans-serif;
+  --font-headline-xl: "Plus Jakarta Sans", sans-serif;
+
+  --text-body-md: 16px;
+  --text-body-md--line-height: 24px;
+  --text-headline-lg: 32px;
+  --text-headline-lg--line-height: 40px;
+  --text-headline-lg--letter-spacing: -0.015em;
+  --text-body-lg: 18px;
+  --text-body-lg--line-height: 28px;
+  --text-body-sm: 14px;
+  --text-body-sm--line-height: 20px;
+  --text-headline-xl-mobile: 36px;
+  --text-headline-xl-mobile--line-height: 44px;
+  --text-headline-xl-mobile--letter-spacing: -0.02em;
+  --text-label-sm: 12px;
+  --text-label-sm--line-height: 16px;
+  --text-label-sm--letter-spacing: 0.02em;
+  --text-label-md: 14px;
+  --text-label-md--line-height: 20px;
+  --text-label-md--letter-spacing: 0.01em;
+  --text-title-md: 18px;
+  --text-title-md--line-height: 26px;
+  --text-headline-lg-mobile: 26px;
+  --text-headline-lg-mobile--line-height: 32px;
+  --text-headline-lg-mobile--letter-spacing: -0.01em;
+  --text-headline-sm: 20px;
+  --text-headline-sm--line-height: 28px;
+  --text-headline-md: 24px;
+  --text-headline-md--line-height: 32px;
+  --text-headline-md--letter-spacing: -0.01em;
+  --text-headline-xl: 48px;
+  --text-headline-xl--line-height: 56px;
+  --text-headline-xl--letter-spacing: -0.02em;
+}
+
+.material-symbols-outlined {
+  font-family: 'Material Symbols Outlined';
+  font-weight: normal;
+  font-style: normal;
+  font-size: 24px;
+  line-height: 1;
+  letter-spacing: normal;
+  text-transform: none;
+  display: inline-block;
+  white-space: nowrap;
+  word-wrap: normal;
+  direction: ltr;
+  -webkit-font-feature-settings: 'liga';
+  -webkit-font-smoothing: antialiased;
+}
+
+.stitch-home {
+  font-family: var(--font-body-md);
+}
