@@ -5,12 +5,12 @@ const Icon = ({ name, className = '', style }) => (
   <span className={`material-symbols-outlined ${className}`} style={style}>{name}</span>
 )
 
-const STEP_LABELS = ['Tratamiento', 'Especialista', 'Fecha y Hora', 'Tus Datos']
+const STEP_LABELS = ['Treatment', 'Specialist', 'Date and Time', 'Your Details']
 
 const formatDateTime = (value) => {
-  if (!value) return 'Selecciona fecha y hora'
+  if (!value) return 'Select date and time'
   const d = new Date(value)
-  return d.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' }) + ' • ' + d.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })
+  return d.toLocaleDateString('en-US', { weekday: 'long', day: 'numeric', month: 'long' }) + ' • ' + d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
 }
 
 export default function BookingWizard({ services, doctors, form, onChange, onSubmit, isSubmitting, error, initialStep = 1 }) {
@@ -50,7 +50,7 @@ export default function BookingWizard({ services, doctors, form, onChange, onSub
                     {done ? <Icon name="check" className="text-[18px]" /> : n}
                   </div>
                   <div className="min-w-0 hidden sm:flex flex-col">
-                    <span className={`font-label-sm text-label-sm uppercase tracking-wider ${active || done ? 'text-secondary font-semibold' : 'text-on-surface-variant'}`}>Paso {n}</span>
+                    <span className={`font-label-sm text-label-sm uppercase tracking-wider ${active || done ? 'text-secondary font-semibold' : 'text-on-surface-variant'}`}>Step {n}</span>
                     <span className={`font-title-md text-body-sm truncate ${active ? 'text-primary font-semibold' : done ? 'text-primary' : 'text-on-surface-variant'}`}>{label}</span>
                   </div>
                 </button>
@@ -68,8 +68,8 @@ export default function BookingWizard({ services, doctors, form, onChange, onSub
             {step === 1 && (
               <section className="flex flex-col gap-space-md">
                 <div>
-                  <span className="font-label-sm text-label-sm text-secondary font-semibold uppercase tracking-wider">Diagnóstico y Salud Bucal</span>
-                  <h2 className="font-headline-md text-headline-md text-primary">¿Cuál es el motivo principal de tu consulta?</h2>
+                  <span className="font-label-sm text-label-sm text-secondary font-semibold uppercase tracking-wider">Diagnosis and Oral Health</span>
+                  <h2 className="font-headline-md text-headline-md text-primary">What's the main reason for your visit?</h2>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-space-md">
                   {services.map((service) => (
@@ -89,7 +89,7 @@ export default function BookingWizard({ services, doctors, form, onChange, onSub
                           {typeof service.price === 'number' && (
                             <div className="flex items-center gap-space-xs mt-space-xs text-secondary font-label-sm text-label-sm">
                               <Icon name="payments" className="text-[16px]" />
-                              <span>{service.price.toLocaleString('es-ES', { style: 'currency', currency: 'EUR' })}</span>
+                              <span>{service.price.toLocaleString('en-US', { style: 'currency', currency: 'EUR' })}</span>
                             </div>
                           )}
                         </div>
@@ -103,9 +103,9 @@ export default function BookingWizard({ services, doctors, form, onChange, onSub
             {step === 2 && (
               <section className="flex flex-col gap-space-md">
                 <div>
-                  <span className="font-label-sm text-label-sm text-secondary font-semibold uppercase tracking-wider">Equipo Médico Colegiado</span>
-                  <h2 className="font-headline-md text-headline-md text-primary">Elige el odontólogo para tu tratamiento</h2>
-                  <p className="font-body-sm text-body-sm text-on-surface-variant">Selecciona tu especialista preferido para ver sus horarios disponibles.</p>
+                  <span className="font-label-sm text-label-sm text-secondary font-semibold uppercase tracking-wider">Licensed Medical Team</span>
+                  <h2 className="font-headline-md text-headline-md text-primary">Choose the dentist for your treatment</h2>
+                  <p className="font-body-sm text-body-sm text-on-surface-variant">Select your preferred specialist to see their available times.</p>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-space-md">
                   {doctors.map((doctor) => (
@@ -133,8 +133,8 @@ export default function BookingWizard({ services, doctors, form, onChange, onSub
             {step === 3 && (
               <section className="flex flex-col gap-space-md">
                 <div>
-                  <span className="font-label-sm text-label-sm text-secondary font-semibold uppercase tracking-wider">Disponibilidad en Tiempo Real</span>
-                  <h2 className="font-headline-md text-headline-md text-primary">Elige día y tramo horario</h2>
+                  <span className="font-label-sm text-label-sm text-secondary font-semibold uppercase tracking-wider">Real-Time Availability</span>
+                  <h2 className="font-headline-md text-headline-md text-primary">Choose a day and time slot</h2>
                 </div>
                 <div className="bg-surface-container-lowest p-space-md sm:p-space-lg rounded-xl shadow-sm">
                   <TimeSlotPicker
@@ -149,54 +149,54 @@ export default function BookingWizard({ services, doctors, form, onChange, onSub
             {step === 4 && (
               <section className="flex flex-col gap-space-md">
                 <div>
-                  <span className="font-label-sm text-label-sm text-secondary font-semibold uppercase tracking-wider">Identificación y Contacto</span>
-                  <h2 className="font-headline-md text-headline-md text-primary">Tus datos para confirmar la cita</h2>
-                  <p className="font-body-sm text-body-sm text-on-surface-variant">Crearemos tu acceso al Portal Paciente con estos datos.</p>
+                  <span className="font-label-sm text-label-sm text-secondary font-semibold uppercase tracking-wider">Identification and Contact</span>
+                  <h2 className="font-headline-md text-headline-md text-primary">Your details to confirm the appointment</h2>
+                  <p className="font-body-sm text-body-sm text-on-surface-variant">We'll create your Patient Portal access with this information.</p>
                 </div>
                 {error && <div className="bg-error-container text-on-error-container px-3 py-2.5 rounded-lg text-body-sm">{error}</div>}
                 <form onSubmit={(e) => { e.preventDefault(); onSubmit() }} className="bg-surface-container-lowest p-space-md sm:p-space-lg rounded-xl shadow-sm flex flex-col gap-space-md">
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-space-md">
                     <div className="flex flex-col gap-space-xs">
-                      <label className="font-label-md text-label-md text-primary font-semibold" htmlFor="patient-name">Nombre *</label>
+                      <label className="font-label-md text-label-md text-primary font-semibold" htmlFor="patient-name">First name *</label>
                       <div className="relative flex items-center">
                         <Icon name="person" className="absolute left-3 text-outline text-[20px]" />
-                        <input id="patient-name" name="firstName" required type="text" value={form.firstName} onChange={onChange} placeholder="Ej: Carlos" className="w-full pl-10 pr-4 py-3 rounded-lg border-0 bg-surface-container-low focus:bg-surface-container-lowest focus:outline-none focus:ring-2 focus:ring-secondary font-body-md text-body-md transition-all" />
+                        <input id="patient-name" name="firstName" required type="text" value={form.firstName} onChange={onChange} placeholder="e.g. Carlos" className="w-full pl-10 pr-4 py-3 rounded-lg border-0 bg-surface-container-low focus:bg-surface-container-lowest focus:outline-none focus:ring-2 focus:ring-secondary font-body-md text-body-md transition-all" />
                       </div>
                     </div>
                     <div className="flex flex-col gap-space-xs">
-                      <label className="font-label-md text-label-md text-primary font-semibold" htmlFor="patient-surname">Apellidos *</label>
+                      <label className="font-label-md text-label-md text-primary font-semibold" htmlFor="patient-surname">Last name *</label>
                       <div className="relative flex items-center">
                         <Icon name="badge" className="absolute left-3 text-outline text-[20px]" />
-                        <input id="patient-surname" name="lastName" required type="text" value={form.lastName} onChange={onChange} placeholder="Ej: Gómez Serrano" className="w-full pl-10 pr-4 py-3 rounded-lg border-0 bg-surface-container-low focus:bg-surface-container-lowest focus:outline-none focus:ring-2 focus:ring-secondary font-body-md text-body-md transition-all" />
+                        <input id="patient-surname" name="lastName" required type="text" value={form.lastName} onChange={onChange} placeholder="e.g. Gómez Serrano" className="w-full pl-10 pr-4 py-3 rounded-lg border-0 bg-surface-container-low focus:bg-surface-container-lowest focus:outline-none focus:ring-2 focus:ring-secondary font-body-md text-body-md transition-all" />
                       </div>
                     </div>
                   </div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-space-md">
                     <div className="flex flex-col gap-space-xs">
-                      <label className="font-label-md text-label-md text-primary font-semibold" htmlFor="patient-phone">Teléfono Móvil *</label>
+                      <label className="font-label-md text-label-md text-primary font-semibold" htmlFor="patient-phone">Mobile Phone *</label>
                       <div className="relative flex items-center">
                         <Icon name="smartphone" className="absolute left-3 text-outline text-[20px]" />
                         <input id="patient-phone" name="phone" required type="tel" value={form.phone} onChange={onChange} placeholder="600 000 000" className="w-full pl-10 pr-4 py-3 rounded-lg border-0 bg-surface-container-low focus:bg-surface-container-lowest focus:outline-none focus:ring-2 focus:ring-secondary font-body-md text-body-md transition-all" />
                       </div>
                     </div>
                     <div className="flex flex-col gap-space-xs">
-                      <label className="font-label-md text-label-md text-primary font-semibold" htmlFor="patient-email">Correo Electrónico *</label>
+                      <label className="font-label-md text-label-md text-primary font-semibold" htmlFor="patient-email">Email Address *</label>
                       <div className="relative flex items-center">
                         <Icon name="mail" className="absolute left-3 text-outline text-[20px]" />
-                        <input id="patient-email" name="email" required type="email" value={form.email} onChange={onChange} placeholder="tu.nombre@ejemplo.com" className="w-full pl-10 pr-4 py-3 rounded-lg border-0 bg-surface-container-low focus:bg-surface-container-lowest focus:outline-none focus:ring-2 focus:ring-secondary font-body-md text-body-md transition-all" />
+                        <input id="patient-email" name="email" required type="email" value={form.email} onChange={onChange} placeholder="your.name@example.com" className="w-full pl-10 pr-4 py-3 rounded-lg border-0 bg-surface-container-low focus:bg-surface-container-lowest focus:outline-none focus:ring-2 focus:ring-secondary font-body-md text-body-md transition-all" />
                       </div>
                     </div>
                   </div>
                   <div className="flex flex-col gap-space-xs">
-                    <label className="font-label-md text-label-md text-primary font-semibold" htmlFor="patient-password">Crea una contraseña *</label>
+                    <label className="font-label-md text-label-md text-primary font-semibold" htmlFor="patient-password">Create a password *</label>
                     <div className="relative flex items-center">
                       <Icon name="lock" className="absolute left-3 text-outline text-[20px]" />
-                      <input id="patient-password" name="password" required minLength={8} type="password" value={form.password} onChange={onChange} placeholder="Mínimo 8 caracteres" className="w-full pl-10 pr-4 py-3 rounded-lg border-0 bg-surface-container-low focus:bg-surface-container-lowest focus:outline-none focus:ring-2 focus:ring-secondary font-body-md text-body-md transition-all" />
+                      <input id="patient-password" name="password" required minLength={8} type="password" value={form.password} onChange={onChange} placeholder="Minimum 8 characters" className="w-full pl-10 pr-4 py-3 rounded-lg border-0 bg-surface-container-low focus:bg-surface-container-lowest focus:outline-none focus:ring-2 focus:ring-secondary font-body-md text-body-md transition-all" />
                     </div>
                   </div>
                   <div className="flex flex-col gap-space-xs">
-                    <label className="font-label-md text-label-md text-primary font-semibold" htmlFor="patient-notes">Observaciones previas (opcional)</label>
-                    <textarea id="patient-notes" name="notes" value={form.notes} onChange={onChange} rows={2} placeholder="Cuéntanos si tienes alergias a anestesia, dolor puntual o sensibilidad..." className="w-full px-4 py-3 rounded-lg border-0 bg-surface-container-low focus:bg-surface-container-lowest focus:outline-none focus:ring-2 focus:ring-secondary font-body-md text-body-md transition-all resize-none" />
+                    <label className="font-label-md text-label-md text-primary font-semibold" htmlFor="patient-notes">Prior notes (optional)</label>
+                    <textarea id="patient-notes" name="notes" value={form.notes} onChange={onChange} rows={2} placeholder="Let us know if you have anesthesia allergies, specific pain, or sensitivity..." className="w-full px-4 py-3 rounded-lg border-0 bg-surface-container-low focus:bg-surface-container-lowest focus:outline-none focus:ring-2 focus:ring-secondary font-body-md text-body-md transition-all resize-none" />
                   </div>
                   <button
                     type="submit"
@@ -204,7 +204,7 @@ export default function BookingWizard({ services, doctors, form, onChange, onSub
                     className="inline-flex items-center justify-center gap-space-sm bg-secondary text-on-secondary font-label-md text-label-md px-space-xl py-space-md rounded-lg shadow-md hover:bg-on-secondary-container transition-all disabled:opacity-70 disabled:cursor-wait"
                   >
                     <Icon name="check_circle" className="text-[18px]" />
-                    <span>{isSubmitting ? 'Confirmando…' : 'Confirmar Cita Ahora'}</span>
+                    <span>{isSubmitting ? 'Confirming…' : 'Confirm Appointment Now'}</span>
                   </button>
                 </form>
               </section>
@@ -217,7 +217,7 @@ export default function BookingWizard({ services, doctors, form, onChange, onSub
                 className={`inline-flex items-center gap-space-xs text-on-surface-variant hover:text-on-surface font-label-md text-label-md px-space-md py-space-sm ${step === 1 ? 'invisible' : ''}`}
               >
                 <Icon name="arrow_back" className="text-[18px]" />
-                <span>Atrás</span>
+                <span>Back</span>
               </button>
               {step < 4 && (
                 <button
@@ -226,7 +226,7 @@ export default function BookingWizard({ services, doctors, form, onChange, onSub
                   onClick={() => goToStep(step + 1)}
                   className="inline-flex items-center justify-center gap-space-sm bg-primary text-on-primary font-label-md text-label-md px-space-xl py-space-md rounded-lg shadow-md hover:bg-primary-container transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  <span>Continuar</span>
+                  <span>Continue</span>
                   <Icon name="arrow_forward" className="text-[18px]" />
                 </button>
               )}
@@ -238,7 +238,7 @@ export default function BookingWizard({ services, doctors, form, onChange, onSub
               <div className="flex items-center justify-between border-b pb-space-sm border-surface-container-high">
                 <div className="flex items-center gap-space-xs">
                   <Icon name="calendar_month" className="text-secondary text-[22px]" />
-                  <h3 className="font-title-md text-title-md text-primary font-bold">Resumen de tu Cita</h3>
+                  <h3 className="font-title-md text-title-md text-primary font-bold">Your Appointment Summary</h3>
                 </div>
               </div>
               <div className="flex flex-col gap-space-md">
@@ -247,8 +247,8 @@ export default function BookingWizard({ services, doctors, form, onChange, onSub
                     <Icon name="dentistry" className="text-[18px]" />
                   </div>
                   <div className="flex flex-col min-w-0">
-                    <span className="font-label-sm text-label-sm text-on-surface-variant">Tratamiento</span>
-                    <span className="font-body-md text-body-md text-primary font-semibold truncate">{selectedService ? selectedService.name : 'Sin seleccionar'}</span>
+                    <span className="font-label-sm text-label-sm text-on-surface-variant">Treatment</span>
+                    <span className="font-body-md text-body-md text-primary font-semibold truncate">{selectedService ? selectedService.name : 'Not selected'}</span>
                   </div>
                 </div>
                 <div className="flex items-start gap-space-sm">
@@ -256,8 +256,8 @@ export default function BookingWizard({ services, doctors, form, onChange, onSub
                     <Icon name="stethoscope" className="text-[18px]" />
                   </div>
                   <div className="flex flex-col min-w-0">
-                    <span className="font-label-sm text-label-sm text-on-surface-variant">Especialista</span>
-                    <span className="font-body-md text-body-md text-primary font-semibold truncate">{selectedDoctor ? `Dr. ${selectedDoctor.name} ${selectedDoctor.lastName}` : 'Sin seleccionar'}</span>
+                    <span className="font-label-sm text-label-sm text-on-surface-variant">Specialist</span>
+                    <span className="font-body-md text-body-md text-primary font-semibold truncate">{selectedDoctor ? `Dr. ${selectedDoctor.name} ${selectedDoctor.lastName}` : 'Not selected'}</span>
                   </div>
                 </div>
                 <div className="flex items-start gap-space-sm">
@@ -265,7 +265,7 @@ export default function BookingWizard({ services, doctors, form, onChange, onSub
                     <Icon name="schedule" className="text-[18px]" />
                   </div>
                   <div className="flex flex-col min-w-0">
-                    <span className="font-label-sm text-label-sm text-on-surface-variant">Día y Hora</span>
+                    <span className="font-label-sm text-label-sm text-on-surface-variant">Date and Time</span>
                     <span className="font-body-md text-body-md text-primary font-semibold truncate capitalize">{formatDateTime(form.appointmentDate)}</span>
                   </div>
                 </div>
@@ -276,12 +276,12 @@ export default function BookingWizard({ services, doctors, form, onChange, onSub
                 disabled={!canContinue || (step === 4 && isSubmitting)}
                 className="w-full py-space-md px-space-lg rounded-lg bg-primary text-on-primary font-label-md text-label-md font-semibold hover:bg-primary-container transition-all flex items-center justify-center gap-space-sm shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                <span>{step < 4 ? 'Continuar' : (isSubmitting ? 'Confirmando…' : 'Confirmar y Reservar Cita')}</span>
+                <span>{step < 4 ? 'Continue' : (isSubmitting ? 'Confirming…' : 'Confirm and Book Appointment')}</span>
                 <Icon name="arrow_forward" className="text-[18px]" />
               </button>
               <div className="flex items-center justify-center gap-space-xs text-outline font-label-sm text-label-sm">
                 <Icon name="lock" className="text-[16px]" />
-                <span>Conexión cifrada SSL • RGPD Sanidad</span>
+                <span>SSL encrypted connection • Healthcare GDPR</span>
               </div>
             </div>
           </aside>

@@ -4,7 +4,7 @@ import { Icon, SiteFooter, SiteHeader } from './SiteChrome'
 const SERVICE_ICONS = ['dentistry', 'precision_manufacturing', 'auto_awesome', 'health_and_safety', 'child_care', 'medical_services']
 
 const formatPrice = (price) =>
-  typeof price === 'number' ? price.toLocaleString('es-ES', { style: 'currency', currency: 'EUR' }) : null
+  typeof price === 'number' ? price.toLocaleString('en-US', { style: 'currency', currency: 'EUR' }) : null
 
 const formatDuration = (minutes) => {
   if (!minutes) return null
@@ -44,11 +44,11 @@ export default function ServicesPage({ services, doctors, currentUser, onOpenAdm
                 <div className="max-w-2xl">
                   <div className="inline-flex items-center gap-space-xs bg-secondary-fixed/50 px-space-sm py-space-xs rounded-full mb-space-sm">
                     <Icon name="verified_user" className="text-secondary text-[18px]" />
-                    <span className="font-label-sm text-label-sm text-on-secondary-fixed">Tecnología Diagnóstica 3D &amp; Certificación Sanitaria</span>
+                    <span className="font-label-sm text-label-sm text-on-secondary-fixed">3D Diagnostic Technology &amp; Healthcare Certification</span>
                   </div>
-                  <h1 className="font-headline-xl text-headline-xl text-primary tracking-tight">Cartera de Servicios Clínicos</h1>
+                  <h1 className="font-headline-xl text-headline-xl text-primary tracking-tight">Clinical Services Portfolio</h1>
                   <p className="font-body-lg text-body-lg text-on-surface-variant mt-space-xs">
-                    Tratamientos bucodentales de alta precisión con tecnología mínimamente invasiva y escáner intraoral digital.
+                    High-precision dental treatments with minimally invasive technology and digital intraoral scanning.
                   </p>
                 </div>
                 <div className="bg-surface-container-lowest p-space-md rounded-xl shadow-sm flex items-center gap-space-md self-start md:self-auto">
@@ -56,7 +56,7 @@ export default function ServicesPage({ services, doctors, currentUser, onOpenAdm
                     <Icon name="calendar_month" className="text-[28px]" />
                   </div>
                   <div>
-                    <span className="block font-label-sm text-label-sm text-on-surface-variant">Especialistas disponibles</span>
+                    <span className="block font-label-sm text-label-sm text-on-surface-variant">Available specialists</span>
                     <span className="font-title-md text-title-md text-on-surface font-semibold">{doctors.length}</span>
                   </div>
                 </div>
@@ -69,12 +69,12 @@ export default function ServicesPage({ services, doctors, currentUser, onOpenAdm
                     type="text"
                     value={query}
                     onChange={(e) => setQuery(e.target.value)}
-                    placeholder="Buscar por tratamiento o síntoma (ej. Ortodoncia, implante, limpieza)..."
+                    placeholder="Search by treatment or symptom (e.g. orthodontics, implant, cleaning)..."
                     className="w-full pl-11 pr-space-md py-space-sm bg-surface-container-low rounded-lg font-body-md text-body-md text-on-surface focus:outline-none focus:bg-surface-container-lowest transition-all"
                   />
                 </div>
                 <span className="font-label-sm text-label-sm text-on-surface-variant whitespace-nowrap px-space-sm">
-                  {filteredServices.length} de {services.length} tratamientos
+                  {filteredServices.length} of {services.length} treatments
                 </span>
               </div>
             </div>
@@ -84,14 +84,14 @@ export default function ServicesPage({ services, doctors, currentUser, onOpenAdm
             {filteredServices.length === 0 ? (
               <div className="py-space-xl text-center bg-surface-container-lowest rounded-xl shadow-sm my-space-md">
                 <Icon name="search_off" className="text-outline text-[48px]" />
-                <h3 className="font-headline-sm text-headline-sm text-on-surface mt-space-sm">No encontramos tratamientos con ese criterio</h3>
-                <p className="font-body-md text-body-md text-on-surface-variant mt-space-xs">Prueba con otro término de búsqueda.</p>
+                <h3 className="font-headline-sm text-headline-sm text-on-surface mt-space-sm">We couldn't find treatments matching that criteria</h3>
+                <p className="font-body-md text-body-md text-on-surface-variant mt-space-xs">Try a different search term.</p>
                 <button
                   type="button"
                   onClick={() => setQuery('')}
                   className="mt-space-md px-space-lg py-space-sm bg-surface-container font-label-md text-label-md text-on-surface rounded-lg hover:bg-surface-container-high transition-colors border-0 cursor-pointer"
                 >
-                  Ver todos los tratamientos
+                  View all treatments
                 </button>
               </div>
             ) : (
@@ -104,7 +104,7 @@ export default function ServicesPage({ services, doctors, currentUser, onOpenAdm
                       </div>
                       <h2 className="font-headline-md text-headline-md text-on-surface">{service.name}</h2>
                       <p className="font-body-sm text-body-sm text-on-surface-variant mt-space-xs">
-                        {service.description || 'Consultá con nuestro equipo para conocer el plan de tratamiento ideal para vos.'}
+                        {service.description || 'Consult with our team to learn about the ideal treatment plan for you.'}
                       </p>
                       {(formatDuration(service.durationMinutes) || formatPrice(service.basePrice)) && (
                         <div className="grid grid-cols-2 gap-space-xs my-space-md p-space-sm rounded-lg bg-surface-container-low">
@@ -112,7 +112,7 @@ export default function ServicesPage({ services, doctors, currentUser, onOpenAdm
                             <div className="flex items-center gap-space-xs">
                               <Icon name="schedule" className="text-secondary text-[18px]" />
                               <div>
-                                <p className="font-label-sm text-label-sm text-on-surface-variant">Duración</p>
+                                <p className="font-label-sm text-label-sm text-on-surface-variant">Duration</p>
                                 <p className="font-label-md text-label-md text-on-surface font-semibold">{formatDuration(service.durationMinutes)}</p>
                               </div>
                             </div>
@@ -121,7 +121,7 @@ export default function ServicesPage({ services, doctors, currentUser, onOpenAdm
                             <div className="flex items-center gap-space-xs">
                               <Icon name="payments" className="text-secondary text-[18px]" />
                               <div>
-                                <p className="font-label-sm text-label-sm text-on-surface-variant">Precio base</p>
+                                <p className="font-label-sm text-label-sm text-on-surface-variant">Base price</p>
                                 <p className="font-label-md text-label-md text-on-surface font-semibold">{formatPrice(service.basePrice)}</p>
                               </div>
                             </div>
@@ -134,7 +134,7 @@ export default function ServicesPage({ services, doctors, currentUser, onOpenAdm
                       onClick={() => onOpenReservation({ serviceId: service.id })}
                       className="w-full inline-flex items-center justify-center gap-space-xs bg-primary-container text-on-primary py-space-sm rounded-lg font-label-md text-label-md hover:bg-primary transition-colors border-0 cursor-pointer mt-space-sm"
                     >
-                      <span>Reservar Valoración</span>
+                      <span>Book Consultation</span>
                       <Icon name="arrow_forward" className="text-[18px]" />
                     </button>
                   </article>
@@ -145,16 +145,16 @@ export default function ServicesPage({ services, doctors, currentUser, onOpenAdm
 
           <section className="max-w-[1280px] mx-auto w-full px-gutter py-space-xl">
             <div className="text-center max-w-2xl mx-auto mb-space-lg">
-              <span className="font-label-sm text-label-sm text-secondary font-semibold uppercase tracking-wider">Protocolo Seguro</span>
-              <h3 className="font-headline-lg text-headline-lg text-primary mt-1">Cómo Desarrollamos Cada Tratamiento</h3>
-              <p className="font-body-md text-body-md text-on-surface-variant mt-1">Garantizamos una experiencia cómoda, informada y de alta previsibilidad clínica en 4 pasos.</p>
+              <span className="font-label-sm text-label-sm text-secondary font-semibold uppercase tracking-wider">Safe Protocol</span>
+              <h3 className="font-headline-lg text-headline-lg text-primary mt-1">How We Carry Out Every Treatment</h3>
+              <p className="font-body-md text-body-md text-on-surface-variant mt-1">We guarantee a comfortable, informed, and highly predictable clinical experience in 4 steps.</p>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-gutter">
               {[
-                { n: '01', title: 'Escáner & Diagnóstico', text: 'Toma digital milimétrica del estado óseo y dental sin pastas desagradables.', tag: 'Precisión de 20 micras' },
-                { n: '02', title: 'Planificación Digital', text: 'Comité médico interdisciplinar para fijar la solución con simulación previa.', tag: 'Resultado visual previo' },
-                { n: '03', title: 'Intervención Mínima', text: 'Microcirugía, sedación monitorizada y procedimientos ágiles sin dolor postoperatorio.', tag: 'Anestesia computarizada' },
-                { n: '04', title: 'Garantía & Revisiones', text: 'Seguimiento fotográfico anual y certificado de trazabilidad de todos los materiales.', tag: 'Pasaporte de implantes' },
+                { n: '01', title: 'Scan & Diagnosis', text: 'Precise digital capture of bone and dental condition without uncomfortable pastes.', tag: '20-micron precision' },
+                { n: '02', title: 'Digital Planning', text: 'Interdisciplinary medical committee to define the solution with an advance simulation.', tag: 'Visual preview of results' },
+                { n: '03', title: 'Minimally Invasive Care', text: 'Microsurgery, monitored sedation, and streamlined procedures with no post-op pain.', tag: 'Computer-guided anesthesia' },
+                { n: '04', title: 'Warranty & Check-ups', text: 'Annual photographic follow-up and traceability certificate for all materials used.', tag: 'Implant passport' },
               ].map((step) => (
                 <div key={step.n} className="bg-surface-container-lowest p-space-lg rounded-xl shadow-sm flex flex-col justify-between">
                   <div>
