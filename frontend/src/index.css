@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@import "./stitch-theme.css";
 
 html {
   min-height: 100%;
