@@ -30,18 +30,18 @@ export default function TeamPage({ doctors, services, currentUser, onOpenAdmin, 
               <div className="flex flex-wrap items-center justify-between gap-space-sm mb-space-md">
                 <div className="inline-flex items-center gap-space-xs bg-surface-container px-space-md py-space-xs rounded-full shadow-sm">
                   <Icon name="verified_user" className="text-secondary text-[18px]" />
-                  <span className="font-label-sm text-label-sm text-on-surface-variant font-medium uppercase tracking-wider">Cuerpo Facultativo Colegiado</span>
+                  <span className="font-label-sm text-label-sm text-on-surface-variant font-medium uppercase tracking-wider">Licensed Medical Staff</span>
                   <span className="inline-block w-1.5 h-1.5 rounded-full bg-secondary-container" />
-                  <span className="font-label-sm text-label-sm text-on-surface font-semibold">Madrid Clínicas</span>
+                  <span className="font-label-sm text-label-sm text-on-surface font-semibold">Madrid Clinics</span>
                 </div>
               </div>
 
               <div className="grid grid-cols-1 lg:grid-cols-12 gap-gutter items-end mb-space-xl">
                 <div className="lg:col-span-8 flex flex-col gap-space-xs">
-                  <span className="font-label-md text-label-md text-secondary uppercase tracking-widest font-semibold">Excelencia Asistencial DentalCare</span>
-                  <h1 className="font-headline-xl text-headline-xl text-on-surface tracking-tight">Nuestro Equipo Médico</h1>
+                  <span className="font-label-md text-label-md text-secondary uppercase tracking-widest font-semibold">DentalCare Clinical Excellence</span>
+                  <h1 className="font-headline-xl text-headline-xl text-on-surface tracking-tight">Our Medical Team</h1>
                   <p className="font-body-lg text-body-lg text-on-surface-variant max-w-2xl mt-space-xs">
-                    Especialistas de primer nivel dedicados con rigor científico y calidez humana a preservar y transformar tu sonrisa.
+                    Top-tier specialists dedicated with scientific rigor and human warmth to preserving and transforming your smile.
                   </p>
                 </div>
                 <div className="lg:col-span-4 flex lg:justify-end">
@@ -50,8 +50,8 @@ export default function TeamPage({ doctors, services, currentUser, onOpenAdmin, 
                       <Icon name="calendar_clock" className="text-[24px]" />
                     </div>
                     <div className="flex flex-col">
-                      <span className="font-label-sm text-label-sm text-on-surface-variant">Equipo activo</span>
-                      <span className="font-title-md text-title-md text-on-surface font-bold">{doctors.length} especialistas</span>
+                      <span className="font-label-sm text-label-sm text-on-surface-variant">Active team</span>
+                      <span className="font-title-md text-title-md text-on-surface font-bold">{doctors.length} specialists</span>
                     </div>
                   </div>
                 </div>
@@ -65,7 +65,7 @@ export default function TeamPage({ doctors, services, currentUser, onOpenAdmin, 
                     className={`flex items-center gap-space-xs px-space-lg py-space-sm rounded-lg font-label-md text-label-md transition-all border-0 cursor-pointer ${filter === 'all' ? 'bg-primary-container text-on-primary shadow-sm' : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container'}`}
                   >
                     <Icon name="groups" className="text-[18px]" />
-                    <span>Todos los Especialistas</span>
+                    <span>All Specialists</span>
                     <span className="ml-1 px-1.5 py-0.5 rounded-full bg-surface-container text-on-surface text-[11px] font-bold">{doctors.length}</span>
                   </button>
                   {specialties.map((specialty) => (
@@ -86,7 +86,7 @@ export default function TeamPage({ doctors, services, currentUser, onOpenAdmin, 
 
           <section className="max-w-[1280px] mx-auto px-gutter w-full mb-space-xl">
             {filteredDoctors.length === 0 ? (
-              <p className="font-body-md text-body-md text-on-surface-variant text-center py-space-xl">No hay especialistas disponibles en esta categoría.</p>
+              <p className="font-body-md text-body-md text-on-surface-variant text-center py-space-xl">No specialists available in this category.</p>
             ) : (
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-gutter">
                 {filteredDoctors.map((doctor) => (
@@ -128,7 +128,7 @@ export default function TeamPage({ doctors, services, currentUser, onOpenAdmin, 
                           onClick={() => onOpenReservation({ doctorId: doctor.id })}
                           className="flex-1 inline-flex items-center justify-center gap-space-xs bg-primary-container text-on-primary font-label-md text-label-md px-space-md py-space-sm rounded-lg hover:bg-primary transition-colors shadow-sm text-center border-0 cursor-pointer"
                         >
-                          <span>Agendar con Dr. {doctor.lastName}</span>
+                          <span>Book with Dr. {doctor.lastName}</span>
                           <Icon name="arrow_forward" className="text-[18px]" />
                         </button>
                       </div>
@@ -146,13 +146,13 @@ export default function TeamPage({ doctors, services, currentUser, onOpenAdmin, 
                 <div className="lg:col-span-8 flex flex-col gap-space-xs">
                   <div className="flex items-center gap-space-xs text-secondary-container">
                     <Icon name="help" className="text-[20px]" />
-                    <span className="font-label-md text-label-md font-semibold tracking-wider uppercase">¿Dudas sobre qué especialista necesitas?</span>
+                    <span className="font-label-md text-label-md font-semibold tracking-wider uppercase">Not sure which specialist you need?</span>
                   </div>
                   <h3 className="font-headline-lg text-headline-lg font-bold text-on-primary tracking-tight">
-                    Te asesoramos sin compromiso antes de tu primera consulta
+                    We'll guide you with no commitment before your first visit
                   </h3>
                   <p className="font-body-md text-body-md text-on-primary-container max-w-2xl mt-space-xs">
-                    Nuestro equipo de coordinación clínica te asignará con el doctor más idóneo para un diagnóstico certero desde el primer día.
+                    Our clinical coordination team will match you with the most suitable doctor for an accurate diagnosis from day one.
                   </p>
                 </div>
                 <div className="lg:col-span-4 flex flex-col sm:flex-row lg:flex-col gap-space-sm justify-center lg:items-end">
@@ -162,7 +162,7 @@ export default function TeamPage({ doctors, services, currentUser, onOpenAdmin, 
                     className="inline-flex items-center justify-center gap-space-xs px-space-lg py-space-sm rounded-lg bg-secondary-container text-on-secondary-container font-label-md text-label-md font-semibold hover:bg-secondary-fixed transition-colors shadow-md text-center w-full sm:w-auto border-0 cursor-pointer"
                   >
                     <Icon name="chat" className="text-[18px]" />
-                    <span>Consulta con Orientación Médica</span>
+                    <span>Get Medical Guidance</span>
                   </button>
                 </div>
               </div>
