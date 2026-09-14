@@ -17,6 +17,7 @@ public class DoctorsController : ControllerBase
         _doctorRepository = doctorRepository;
     }
 
+    // Publicly listable despite the controller-level [Authorize] so the public booking page can show doctors.
     [HttpGet]
     [AllowAnonymous]
     public async Task<IActionResult> GetAll()

@@ -33,6 +33,33 @@ public class AppointmentsController : ControllerBase
         return Ok(appointments);
     }
 
+    // Lets a signed-in patient see their own appointments without the staff-only roles required by GetAll.
+    [HttpGet("mine")]
+    [Authorize(Roles = UserRoles.Patient)]
+    public async Task<IActionResult> GetMine()
+    {
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        var patientId = userId is null ? null : await _context.Users.Where(x => x.Id == Guid.Parse(userId)).Select(x => x.PatientId).SingleOrDefaultAsync();
+        if (patientId is null) return Ok(Array.Empty<object>());
+
+        var appointments = await _context.Appointments
+            .AsNoTracking()
+            .Where(x => x.PatientId == patientId)
+            .OrderByDescending(x => x.AppointmentDate)
+            .Select(x => new
+            {
+                x.Id,
+                x.AppointmentDate,
+                x.Status,
+                x.Notes,
+                Doctor = x.Doctor == null ? null : new { x.Doctor.Name, x.Doctor.LastName, x.Doctor.Specialty },
+                Service = x.Service == null ? null : new { x.Service.Name },
+            })
+            .ToListAsync();
+
+        return Ok(appointments);
+    }
+
     [HttpGet("availability")]
     [AllowAnonymous]
     public async Task<IActionResult> GetAvailability([FromQuery] Guid doctorId, [FromQuery] DateOnly date)
@@ -60,6 +87,8 @@ public class AppointmentsController : ControllerBase
         {
             return NotFound();
         }
+        // Any authenticated user can hit this route, but a patient must only see their own appointment
+        // (staff roles are implicitly allowed since they don't match UserRoles.Patient).
         if (User.IsInRole(UserRoles.Patient))
         {
             var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
@@ -70,6 +99,7 @@ public class AppointmentsController : ControllerBase
         return Ok(appointment);
     }
 
+    // Anonymous so patients can self-book from the public site without an account.
     [HttpPost]
     [AllowAnonymous]
     public async Task<IActionResult> Create([FromBody] AppointmentRequest request)
@@ -78,6 +108,7 @@ public class AppointmentsController : ControllerBase
         if (!IsValidStatus(request.Status)) return BadRequest(new { message = "Invalid appointment status." });
         if (!await _context.Patients.AnyAsync(x => x.Id == request.PatientId && x.IsActive) || !await _context.Doctors.AnyAsync(x => x.Id == request.DoctorId && x.IsActive)) return BadRequest(new { message = "The patient or doctor is not available." });
         if (request.ServiceId is not null && !await _context.Services.AnyAsync(x => x.Id == request.ServiceId && x.IsActive)) return BadRequest(new { message = "The service is not available." });
+        // Cancelled/no-show appointments free up the slot, so they're excluded from the conflict check.
         var conflict = await _context.Appointments.AnyAsync(x => x.DoctorId == request.DoctorId && x.AppointmentDate == request.AppointmentDate && x.Status != AppointmentStatuses.Cancelled && x.Status != AppointmentStatuses.NoShow);
         if (conflict) return Conflict(new { message = "The doctor already has an appointment at that time." });
         var appointment = new Appointment { Id = Guid.NewGuid(), PatientId = request.PatientId, DoctorId = request.DoctorId, ServiceId = request.ServiceId, AppointmentDate = request.AppointmentDate.ToUniversalTime(), Status = request.Status, Notes = request.Notes?.Trim() ?? "", CreatedAt = DateTime.UtcNow };

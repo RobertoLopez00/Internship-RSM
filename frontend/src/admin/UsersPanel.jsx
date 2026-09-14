@@ -36,6 +36,8 @@ export default function UsersPanel() {
   const save = async (event) => {
     event.preventDefault()
     setSaving(true); setFormError('')
+    // Only one of patientId/doctorId is ever relevant for a given role — force the other to null
+    // so switching a user's role in the form can't leave a stale link to the wrong entity.
     const payload = { ...form, patientId: form.role === 'Patient' ? form.patientId || null : null, doctorId: form.role === 'Doctor' ? form.doctorId || null : null }
     try {
       if (form.id) await updateUser(form.id, payload)

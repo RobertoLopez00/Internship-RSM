@@ -3,6 +3,8 @@ using ClinicaDental.Domain.Entities;
 
 namespace ClinicaDental.Application.UseCases.Patients;
 
+// Thin orchestration layer between controllers and the repository, following the use-case pattern so
+// business rules (currently none beyond delegation) have a dedicated home separate from persistence and HTTP concerns.
 public class GetAllPatientsUseCase
 {
     private readonly IPatientRepository _patientRepository;

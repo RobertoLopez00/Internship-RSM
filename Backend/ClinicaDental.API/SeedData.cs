@@ -4,10 +4,13 @@ using Microsoft.AspNetCore.Identity;
 
 namespace ClinicaDental.API;
 
+// Populates demo/dev data (services, doctors, patients, sample appointments, treatments, payments,
+// a dental record, and sample staff logins) so a fresh environment is usable without manual data entry.
 public static class SeedData
 {
     public static void SeedSampleData(AppDbContext db)
     {
+        // Idempotency guard: if services already exist, assume seeding already ran and skip.
         if (db.Services.Any()) return;
 
         var now = DateTime.UtcNow;

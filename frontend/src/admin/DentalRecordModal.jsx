@@ -23,11 +23,16 @@ export default function DentalRecordModal({ patient, canEdit, onClose }) {
   const load = async () => {
     setLoading(true)
     try {
+      // A patient with no dental record yet returns 404, not an empty record — that's expected
+      // (not an error) and just means the form starts blank and must be saved once before
+      // consultations can be logged (see the notice at the bottom of the form).
       const [rec, docs] = await Promise.all([
         getDentalRecord(patient.id).catch((e) => (e.message?.includes('404') ? null : Promise.reject(e))),
         getDoctors(),
       ])
       setRecord(rec)
+      // `form` is a separate draft copy of `record`'s fields, not `record` itself — this lets
+      // the textarea edits stay uncommitted (and cancelable by closing the modal) until Save.
       setForm(rec ? { medicalHistory: rec.medicalHistory || '', allergies: rec.allergies || '', medications: rec.medications || '', observations: rec.observations || '' } : blankRecord)
       setDoctors(docs)
     } catch { setNotice({ type: 'error', text: 'Could not load the dental record.' }) } finally { setLoading(false) }

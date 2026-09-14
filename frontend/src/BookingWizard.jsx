@@ -13,25 +13,59 @@ const formatDateTime = (value) => {
   return d.toLocaleDateString('en-US', { weekday: 'long', day: 'numeric', month: 'long' }) + ' • ' + d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
 }
 
-export default function BookingWizard({ services, doctors, form, onChange, onSubmit, isSubmitting, error, initialStep = 1 }) {
+export default function BookingWizard({ services, doctors, form, onChange, onSubmit, isSubmitting, error, initialStep = 1, currentUser = null }) {
   const [step, setStep] = useState(initialStep)
 
   const selectedService = useMemo(() => services.find((s) => s.id === form.serviceId), [services, form.serviceId])
   const selectedDoctor = useMemo(() => doctors.find((d) => d.id === form.doctorId), [doctors, form.doctorId])
 
-  const goToStep = (n) => { if (n >= 1 && n <= 4) setStep(n) }
+  const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
-  const setField = (name, value) => onChange({ target: { name, value } })
-
-  const canContinue = {
+  // Per-step validity, recomputed on every render from the current form state (not memoized —
+  // the wizard is small so this is cheap). Each entry answers "is this step's own data complete
+  // and correct", independent of the others; step 3 additionally re-checks that the chosen time
+  // hasn't slipped into the past while the user was filling the form.
+  const stepValid = {
     1: !!form.serviceId,
     2: !!form.doctorId,
     3: !!form.appointmentDate && new Date(form.appointmentDate) > new Date(),
-    4: true,
-  }[step]
+    4: currentUser
+      ? true
+      : form.firstName.trim().length > 0 &&
+        form.lastName.trim().length > 0 &&
+        form.phone.trim().length > 0 &&
+        emailPattern.test(form.email.trim()) &&
+        form.password.length >= 8,
+  }
 
+  // The furthest step the user is allowed to jump to right now: steps must be completed in
+  // order, so this walks forward from step 1 and stops at the first incomplete one. It is
+  // intentionally NOT the same as "step" (the step currently being viewed) — a user can navigate
+  // backward to review earlier steps without that lowering how far they've actually progressed.
+  const maxReachableStep = () => {
+    if (!stepValid[1]) return 1
+    if (!stepValid[2]) return 2
+    if (!stepValid[3]) return 3
+    return 4
+  }
+
+  // Clicking a step indicator or "Continue" goes through here rather than setStep directly, so a
+  // stale/disabled control (or a race where validity just changed) can't skip ahead past what's
+  // actually been completed — forward jumps are clamped to maxReachableStep().
+  const goToStep = (n) => {
+    if (n < 1 || n > 4) return
+    if (n > step && n > maxReachableStep()) { setStep(maxReachableStep()); return }
+    setStep(n)
+  }
+
+  const setField = (name, value) => onChange({ target: { name, value } })
+
+  const canContinue = stepValid[step]
+
+  // Sidebar's summary "Confirm" button only ever fires the submit once the final step's fields
+  // are all valid, mirroring the guard on the in-form submit button so both entry points agree.
   const sidebarAction = () => {
-    if (step < 4) { goToStep(step + 1); return }
+    if (!stepValid[4]) return
     onSubmit()
   }
 
@@ -44,8 +78,12 @@ export default function BookingWizard({ services, doctors, form, onChange, onSub
               const n = i + 1
               const active = n === step
               const done = n < step
+              // A step is clickable if it's already been unlocked OR it's behind/at the current
+              // step (so users can always step back to review, even though going back doesn't
+              // change maxReachableStep).
+              const reachable = n <= maxReachableStep() || n <= step
               return (
-                <button key={label} type="button" onClick={() => goToStep(n)} className="flex items-center gap-space-sm text-left transition-all group">
+                <button key={label} type="button" disabled={!reachable} onClick={() => goToStep(n)} className={`flex items-center gap-space-sm text-left transition-all group ${!reachable ? 'opacity-50 cursor-not-allowed' : ''}`}>
                   <div className={`w-8 h-8 rounded-full flex items-center justify-center font-label-md text-label-md shrink-0 shadow-sm transition-colors ${active ? 'bg-primary-container text-on-primary' : done ? 'bg-secondary text-on-secondary' : 'bg-surface-container-high text-on-surface-variant'}`}>
                     {done ? <Icon name="check" className="text-[18px]" /> : n}
                   </div>
@@ -146,7 +184,32 @@ export default function BookingWizard({ services, doctors, form, onChange, onSub
               </section>
             )}
 
-            {step === 4 && (
+            {step === 4 && currentUser && (
+              <section className="flex flex-col gap-space-md">
+                <div>
+                  <span className="font-label-sm text-label-sm text-secondary font-semibold uppercase tracking-wider">Confirm</span>
+                  <h2 className="font-headline-md text-headline-md text-primary">Confirm your appointment</h2>
+                  <p className="font-body-sm text-body-sm text-on-surface-variant">Booking as {currentUser.displayName || currentUser.email}.</p>
+                </div>
+                {error && <div className="bg-error-container text-on-error-container px-3 py-2.5 rounded-lg text-body-sm">{error}</div>}
+                <form onSubmit={(e) => { e.preventDefault(); onSubmit() }} className="bg-surface-container-lowest p-space-md sm:p-space-lg rounded-xl shadow-sm flex flex-col gap-space-md">
+                  <div className="flex flex-col gap-space-xs">
+                    <label className="font-label-md text-label-md text-primary font-semibold" htmlFor="patient-notes">Prior notes (optional)</label>
+                    <textarea id="patient-notes" name="notes" value={form.notes} onChange={onChange} rows={2} placeholder="Let us know if you have anesthesia allergies, specific pain, or sensitivity..." className="w-full px-4 py-3 rounded-lg border-0 bg-surface-container-low focus:bg-surface-container-lowest focus:outline-none focus:ring-2 focus:ring-secondary font-body-md text-body-md transition-all resize-none" />
+                  </div>
+                  <button
+                    type="submit"
+                    disabled={isSubmitting}
+                    className="inline-flex items-center justify-center gap-space-sm bg-secondary text-on-secondary font-label-md text-label-md px-space-xl py-space-md rounded-lg shadow-md hover:bg-on-secondary-container transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <Icon name="check_circle" className="text-[18px]" />
+                    <span>{isSubmitting ? 'Confirming…' : 'Confirm Appointment Now'}</span>
+                  </button>
+                </form>
+              </section>
+            )}
+
+            {step === 4 && !currentUser && (
               <section className="flex flex-col gap-space-md">
                 <div>
                   <span className="font-label-sm text-label-sm text-secondary font-semibold uppercase tracking-wider">Identification and Contact</span>
@@ -167,7 +230,7 @@ export default function BookingWizard({ services, doctors, form, onChange, onSub
                       <label className="font-label-md text-label-md text-primary font-semibold" htmlFor="patient-surname">Last name *</label>
                       <div className="relative flex items-center">
                         <Icon name="badge" className="absolute left-3 text-outline text-[20px]" />
-                        <input id="patient-surname" name="lastName" required type="text" value={form.lastName} onChange={onChange} placeholder="e.g. Gómez Serrano" className="w-full pl-10 pr-4 py-3 rounded-lg border-0 bg-surface-container-low focus:bg-surface-container-lowest focus:outline-none focus:ring-2 focus:ring-secondary font-body-md text-body-md transition-all" />
+                        <input id="patient-surname" name="lastName" required type="text" value={form.lastName} onChange={onChange} placeholder="e.g. Smith Johnson" className="w-full pl-10 pr-4 py-3 rounded-lg border-0 bg-surface-container-low focus:bg-surface-container-lowest focus:outline-none focus:ring-2 focus:ring-secondary font-body-md text-body-md transition-all" />
                       </div>
                     </div>
                   </div>
@@ -200,8 +263,8 @@ export default function BookingWizard({ services, doctors, form, onChange, onSub
                   </div>
                   <button
                     type="submit"
-                    disabled={isSubmitting}
-                    className="inline-flex items-center justify-center gap-space-sm bg-secondary text-on-secondary font-label-md text-label-md px-space-xl py-space-md rounded-lg shadow-md hover:bg-on-secondary-container transition-all disabled:opacity-70 disabled:cursor-wait"
+                    disabled={isSubmitting || !stepValid[4]}
+                    className="inline-flex items-center justify-center gap-space-sm bg-secondary text-on-secondary font-label-md text-label-md px-space-xl py-space-md rounded-lg shadow-md hover:bg-on-secondary-container transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     <Icon name="check_circle" className="text-[18px]" />
                     <span>{isSubmitting ? 'Confirming…' : 'Confirm Appointment Now'}</span>
@@ -233,7 +296,7 @@ export default function BookingWizard({ services, doctors, form, onChange, onSub
             </div>
           </div>
 
-          <aside className="lg:col-span-4 flex flex-col gap-space-md lg:sticky lg:top-4">
+          <aside className="lg:col-span-4 flex flex-col gap-space-md sticky top-2 lg:top-4 z-10">
             <div className="bg-surface-container-lowest rounded-xl p-space-lg shadow-md flex flex-col gap-space-md">
               <div className="flex items-center justify-between border-b pb-space-sm border-surface-container-high">
                 <div className="flex items-center gap-space-xs">
@@ -272,17 +335,13 @@ export default function BookingWizard({ services, doctors, form, onChange, onSub
               </div>
               <button
                 type="button"
-                onClick={sidebarAction}
-                disabled={!canContinue || (step === 4 && isSubmitting)}
+                onClick={() => { if (step === 4) sidebarAction() }}
+                disabled={step < 4 || !stepValid[4] || isSubmitting}
                 className="w-full py-space-md px-space-lg rounded-lg bg-primary text-on-primary font-label-md text-label-md font-semibold hover:bg-primary-container transition-all flex items-center justify-center gap-space-sm shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                <span>{step < 4 ? 'Continue' : (isSubmitting ? 'Confirming…' : 'Confirm and Book Appointment')}</span>
+                <span>{step < 4 ? 'Complete all steps to continue' : (isSubmitting ? 'Confirming…' : 'Confirm and Book Appointment')}</span>
                 <Icon name="arrow_forward" className="text-[18px]" />
               </button>
-              <div className="flex items-center justify-center gap-space-xs text-outline font-label-sm text-label-sm">
-                <Icon name="lock" className="text-[16px]" />
-                <span>SSL encrypted connection • Healthcare GDPR</span>
-              </div>
             </div>
           </aside>
         </div>
