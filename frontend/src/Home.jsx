@@ -325,14 +325,20 @@ export default function Home({ doctors, services, currentUser, onOpenAdmin, onOp
                     <a className="flex-1 flex items-center justify-center gap-space-xs bg-primary text-on-primary py-space-sm px-space-md rounded-lg font-label-md text-label-md hover:bg-primary-container transition-all" href="tel:+34912345678">
                       <Icon name="call" className="text-[18px]" /><span>Call now</span>
                     </a>
-                    <button type="button" onClick={() => onOpenReservation()} className="flex-1 flex items-center justify-center gap-space-xs bg-secondary-fixed text-on-secondary-fixed py-space-sm px-space-md rounded-lg font-label-md text-label-md hover:bg-secondary transition-all hover:text-on-secondary border-0 cursor-pointer">
+                    <a href="https://www.google.com/maps/dir/?api=1&destination=Paseo+de+la+Castellana+142,+28046+Madrid" target="_blank" rel="noopener noreferrer" className="flex-1 flex items-center justify-center gap-space-xs bg-secondary-fixed text-on-secondary-fixed py-space-sm px-space-md rounded-lg font-label-md text-label-md hover:bg-secondary transition-all hover:text-on-secondary border-0 cursor-pointer">
                       <Icon name="directions" className="text-[18px]" /><span>Get directions</span>
-                    </button>
+                    </a>
                   </div>
                 </div>
                 <div className="lg:col-span-7 flex flex-col rounded-2xl overflow-hidden shadow-sm relative min-h-[380px]">
-                  <div className="w-full h-full min-h-[380px] bg-cover bg-center rounded-2xl" style={{ backgroundImage: "url('https://lh3.googleusercontent.com/aida-public/AB6AXuDDQLutujNOymDgLSaUX3-GI4AJnfjNy4iR5cYepUZJTfdIwCIxxaB6VBlhRLcuzsL_849eyGDMAsg2nK9I0rE5wpvHNij98HR-RCWuLnMMW50nYJHZNbcG3oe3mVdyLidT-YNRTDYBqhWe_XdDCw3vFj8_sRzyphO6pms2tDB3xyXKQX8LOIwXAvcxGLyakdRpFYnltSTbcVg6dl2uCE7thtTa9SMU7o3om_duaLSku1dTyAu71d4XLg')" }} />
-                  <div className="absolute top-4 right-4 bg-surface-container-lowest/95 backdrop-blur-md p-space-sm rounded-lg shadow-md flex items-center gap-space-sm">
+                  <iframe
+                    title="Clinic location map"
+                    className="w-full h-full min-h-[380px] rounded-2xl border-0"
+                    loading="lazy"
+                    referrerPolicy="no-referrer-when-downgrade"
+                    src="https://www.google.com/maps?q=Paseo+de+la+Castellana+142,+28046+Madrid&output=embed"
+                  />
+                  <div className="absolute top-4 right-4 bg-surface-container-lowest/95 backdrop-blur-md p-space-sm rounded-lg shadow-md flex items-center gap-space-sm pointer-events-none">
                     <span className="w-3 h-3 rounded-full bg-tertiary-fixed animate-pulse" />
                     <span className="font-label-sm text-label-sm text-on-surface font-semibold">Clinic Open Now</span>
                   </div>

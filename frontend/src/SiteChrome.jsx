@@ -5,6 +5,29 @@ export const Icon = ({ name, className = '', fill = false, style }) => (
   >{name}</span>
 )
 
+export const LogoMark = ({ className = 'h-8 w-8' }) => (
+  <svg viewBox="0 0 40 40" className={className} fill="none" xmlns="http://www.w3.org/2000/svg">
+    <rect width="40" height="40" rx="10" fill="#29ABE2" />
+    <path
+      d="M20 11c-3.5 0-6.5 1.6-6.5 5.2 0 2.5.8 4.6 1.6 6.8.6 1.7 1.3 3.6 1.7 5 .3 1.1 1 1.9 1.9 1.9.7 0 1.1-.5 1.3-1.2l1-4.3 1 4.3c.2.7.6 1.2 1.3 1.2.9 0 1.6-.8 1.9-1.9.4-1.4 1.1-3.3 1.7-5 .8-2.2 1.6-4.3 1.6-6.8 0-3.6-3-5.2-6.5-5.2z"
+      fill="white"
+    />
+    <path d="m16.6 18.8 2.3 2.3 4.5-4.6" stroke="#29ABE2" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+)
+
+export const Logo = ({ markClassName = 'h-8 w-8', wordmarkClassName = 'text-xl', dentalClassName = 'text-[#0f2942]', careClassName = 'text-[#29ABE2]', subtitle = false, subtitleClassName = 'text-on-surface-variant' }) => (
+  <span className="inline-flex items-center gap-space-sm">
+    <LogoMark className={markClassName} />
+    <span className="flex flex-col leading-none">
+      <span className={`font-headline-sm font-bold tracking-tight ${wordmarkClassName}`}>
+        <span className={dentalClassName}>Dental</span><span className={careClassName}>Care</span>
+      </span>
+      {subtitle && <span className={`font-label-sm text-label-sm uppercase tracking-widest ${subtitleClassName}`}>Dental Clinic</span>}
+    </span>
+  </span>
+)
+
 export function SiteHeader({ currentUser, onOpenAdmin, onOpenReservation, onNavigateHome, onNavigateTeam, onNavigateServices, activePath = 'inicio' }) {
   const navLinkClass = (path) =>
     `px-space-md py-space-sm transition-colors rounded-lg ${activePath === path ? 'bg-surface-container-high text-on-surface font-semibold' : 'text-on-surface-variant hover:text-on-surface'}`
@@ -13,9 +36,8 @@ export function SiteHeader({ currentUser, onOpenAdmin, onOpenReservation, onNavi
     <header className="fixed top-0 left-0 right-0 z-50 bg-surface/90 backdrop-blur-xl shadow-[0_1px_8px_rgba(0,0,0,0.04)]">
       <div className="h-20 max-w-[1280px] mx-auto px-gutter flex items-center justify-between gap-space-md">
         <div className="flex items-center gap-space-lg">
-          <button type="button" onClick={onNavigateHome} className="flex items-center gap-space-sm focus:outline-none border-0 bg-transparent cursor-pointer">
-            <span className="h-8 w-8 rounded-lg bg-primary text-on-primary flex items-center justify-center font-headline-sm text-headline-sm">D</span>
-            <span className="font-headline-sm text-headline-sm text-primary tracking-tight">DentalCare</span>
+          <button type="button" onClick={onNavigateHome} className="flex items-center focus:outline-none border-0 bg-transparent cursor-pointer">
+            <Logo wordmarkClassName="text-headline-sm" />
           </button>
           <nav className="hidden lg:flex items-center gap-space-xs">
             <button type="button" onClick={onNavigateHome} className={navLinkClass('inicio') + ' border-0 bg-transparent cursor-pointer'}>Home</button>
@@ -50,9 +72,8 @@ export function SiteFooter({ services, onOpenReservation }) {
       <div className="max-w-[1280px] mx-auto px-gutter py-space-xl">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-gutter mb-space-xl">
           <div className="flex flex-col gap-space-sm">
-            <div className="flex items-center gap-space-sm mb-space-xs">
-              <span className="h-7 w-7 rounded-lg bg-primary text-on-primary flex items-center justify-center font-headline-sm text-headline-sm text-[14px]">D</span>
-              <span className="font-headline-sm text-headline-sm text-primary">DentalCare</span>
+            <div className="mb-space-xs">
+              <Logo markClassName="h-7 w-7" wordmarkClassName="text-headline-sm" />
             </div>
             <p className="font-body-sm text-body-sm text-on-surface-variant">Clinical dental excellence, advanced diagnostic technology, and human-centered care for your oral health.</p>
             <div className="flex items-center gap-space-sm mt-space-sm">

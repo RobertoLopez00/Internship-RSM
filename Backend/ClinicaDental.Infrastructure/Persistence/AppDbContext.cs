@@ -51,28 +51,37 @@ public class AppDbContext : DbContext
             entity.Property(a => a.Notes).HasMaxLength(500);
             entity.HasIndex(a => a.PatientId);
             entity.HasIndex(a => a.DoctorId);
+            // Composite index supports the availability/conflict-check queries that filter by doctor + date range.
             entity.HasIndex(a => new { a.DoctorId, a.AppointmentDate });
+            // Restrict (not Cascade) on Patient/Doctor: deleting a patient/doctor with appointment history
+            // should fail rather than silently wipe out appointment records.
             entity.HasOne(a => a.Patient).WithMany(p => p.Appointments).HasForeignKey(a => a.PatientId).OnDelete(DeleteBehavior.Restrict);
             entity.HasOne(a => a.Doctor).WithMany(d => d.Appointments).HasForeignKey(a => a.DoctorId).OnDelete(DeleteBehavior.Restrict);
+            // SetNull because Service is optional context on an appointment; removing a service shouldn't delete the appointment.
             entity.HasOne(a => a.Service).WithMany(s => s.Appointments).HasForeignKey(a => a.ServiceId).OnDelete(DeleteBehavior.SetNull);
         });
 
         modelBuilder.Entity<User>(entity =>
         {
             entity.HasKey(u => u.Id);
+            // Email is the login identifier, so it must be unique at the DB level (not just app-checked).
             entity.HasIndex(u => u.Email).IsUnique();
             entity.Property(u => u.Email).IsRequired().HasMaxLength(150);
             entity.Property(u => u.PasswordHash).IsRequired();
             entity.Property(u => u.Role).IsRequired().HasMaxLength(30);
             entity.Property(u => u.DisplayName).IsRequired().HasMaxLength(200);
+            // A User optionally links to a Patient or Doctor profile depending on Role; SetNull lets the
+            // profile be deleted without cascading into deleting the login account.
             entity.HasOne(u => u.Patient).WithOne(p => p.User).HasForeignKey<User>(u => u.PatientId).OnDelete(DeleteBehavior.SetNull);
             entity.HasOne(u => u.Doctor).WithOne(d => d.User).HasForeignKey<User>(u => u.DoctorId).OnDelete(DeleteBehavior.SetNull);
         });
         modelBuilder.Entity<RefreshToken>(entity =>
         {
             entity.HasKey(t => t.Id);
+            // Unique so a hash lookup during refresh (see AuthController.Refresh) resolves to at most one token.
             entity.HasIndex(t => t.TokenHash).IsUnique();
             entity.Property(t => t.TokenHash).IsRequired().HasMaxLength(128);
+            // Cascade: deleting a user should clean up their refresh tokens too.
             entity.HasOne(t => t.User).WithMany(u => u.RefreshTokens).HasForeignKey(t => t.UserId).OnDelete(DeleteBehavior.Cascade);
         });
         modelBuilder.Entity<DentalService>(entity =>
@@ -85,6 +94,7 @@ public class AppDbContext : DbContext
         modelBuilder.Entity<DentalRecord>(entity =>
         {
             entity.HasKey(r => r.Id);
+            // One dental record per patient (1:1), enforced via a unique index on the FK.
             entity.HasIndex(r => r.PatientId).IsUnique();
             entity.HasOne(r => r.Patient).WithOne(p => p.DentalRecord).HasForeignKey<DentalRecord>(r => r.PatientId).OnDelete(DeleteBehavior.Cascade);
         });

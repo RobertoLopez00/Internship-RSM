@@ -36,6 +36,8 @@ export default function TreatmentsPanel({ canEdit, canRegisterPayments }) {
   }
   useEffect(() => { load() }, [])
 
+  // Outstanding balance is derived on the fly from cost minus the sum of recorded payments
+  // rather than stored on the treatment — keeps it always in sync with the payments list.
   const balanceOf = (t) => t.cost - (t.payments?.reduce((sum, p) => sum + p.amount, 0) || 0)
 
   const save = async (event) => {
@@ -81,6 +83,7 @@ export default function TreatmentsPanel({ canEdit, canRegisterPayments }) {
             <td className={tdCls}><span className={`font-bold ${balance > 0 ? 'text-red-700' : 'text-green-700'}`}>{formatCurrency(balance)}</span></td>
             <td className={`${tdCls} flex gap-2 justify-end flex-wrap`}>
               {canEdit && <button className={iconBtnCls} onClick={() => setForm({ ...t, startDate: t.startDate?.slice(0, 10), endDate: t.endDate?.slice(0, 10) || '' })}>Edit</button>}
+              {/* Disabled once the balance hits zero (or goes negative) — nothing left to collect. */}
               {canRegisterPayments && <button className={iconBtnCls} disabled={balance <= 0} onClick={() => openPayment(t)}>Record payment</button>}
             </td>
           </tr>

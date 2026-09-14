@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import { login } from './services/auth'
+import { login, saveSession } from './services/auth'
+import { Logo } from './SiteChrome'
 import { registerPatient } from './services/api'
 
 const Icon = ({ name, className = '', style }) => (
@@ -49,7 +50,7 @@ export default function LoginView({ onSuccess, onCancel }) {
         phone: reg.phone.trim(),
         dateOfBirth: new Date().toISOString(),
       })
-      onSuccess(auth)
+      onSuccess(saveSession(auth))
     } catch (e) {
       setRegError(e.message)
     } finally {
@@ -67,21 +68,7 @@ export default function LoginView({ onSuccess, onCancel }) {
             <div className="absolute -left-16 bottom-10 w-64 h-64 rounded-full bg-tertiary-fixed/10 blur-2xl pointer-events-none" />
 
             <div className="relative z-10 space-y-6">
-              <div className="flex items-center space-x-3.5">
-                <div className="w-12 h-12 rounded-xl bg-secondary-container flex items-center justify-center text-on-primary shadow-md">
-                  <svg className="w-7 h-7" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" viewBox="0 0 24 24">
-                    <path d="M12 2C7.5 2 4 4.5 4 8c0 2.5 1.5 5 2.5 8 .8 2.4 2 4 4 4 1.5 0 2.2-.8 3.5-.8 1.3 0 2 .8 3.5.8 2 0 3.2-1.6 4-4 1-3 2.5-5.5 2.5-8 0-3.5-3.5-6-8-6z" />
-                    <path d="m9 11.5 2 2 4-4" />
-                  </svg>
-                </div>
-                <div>
-                  <div className="flex items-baseline">
-                    <span className="font-headline-md text-headline-md tracking-tight font-bold text-white">Dental</span>
-                    <span className="font-headline-md text-headline-md tracking-tight font-bold text-secondary-container">Care</span>
-                  </div>
-                  <p className="font-label-sm text-label-sm tracking-widest uppercase text-surface-variant font-medium">Dental Clinic</p>
-                </div>
-              </div>
+              <Logo markClassName="h-12 w-12" wordmarkClassName="text-headline-md" dentalClassName="text-white" careClassName="text-secondary-container" subtitle subtitleClassName="text-surface-variant" />
               <div className="pt-6">
                 <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-surface-container-high/20 text-secondary-fixed text-label-sm font-label-sm backdrop-blur-sm">
                   <span className="w-2 h-2 rounded-full bg-secondary-container animate-ping" />

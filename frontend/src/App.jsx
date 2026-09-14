@@ -1,13 +1,14 @@
 import { useEffect, useState } from 'react'
 import { createAppointment, getDoctorsPublic, getServicesPublic, registerPatient } from './services/api'
 import AdminPortal from './AdminPortal'
+import PatientPortal from './PatientPortal'
 import LoginView from './LoginView'
 import Home from './Home'
 import TeamPage from './TeamPage'
 import ServicesPage from './ServicesPage'
 import BookingWizard from './BookingWizard'
 import { useRipple } from './useRipple'
-import { clearSession, session } from './services/auth'
+import { clearSession, saveSession, session } from './services/auth'
 import { X } from 'lucide-react'
 
 const emptyReservation = { firstName: '', lastName: '', email: '', password: '', phone: '', appointmentDate: '', doctorId: '', serviceId: '', notes: '' }
@@ -15,14 +16,20 @@ const emptyContact = { name: '', email: '', phone: '', message: '' }
 const localDateTime = (date = new Date()) => new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().slice(0, 16)
 
 function App() {
+  // adminView/loginView/page act as a simple hand-rolled router: this app has no react-router,
+  // so which top-level screen renders is just a few booleans/strings checked in the JSX below.
   const [adminView, setAdminView] = useState(false)
   const [loginView, setLoginView] = useState(false)
   const [page, setPage] = useState('home')
+  // currentUser is seeded from localStorage via session() so a page reload doesn't bounce a
+  // logged-in user back to the public site before the admin check below runs.
   const [currentUser, setCurrentUser] = useState(session())
   const [doctors, setDoctors] = useState([])
   const [services, setServices] = useState([])
   const [reserveForm, setReserveForm] = useState(emptyReservation)
   const [contactForm, setContactForm] = useState(emptyContact)
+  // modal is a single slot ('reserve' | 'contact' | null) rather than two booleans, since only
+  // one modal can ever be open at a time.
   const [modal, setModal] = useState(null)
   const [feedback, setFeedback] = useState(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -46,15 +53,25 @@ function App() {
   const reservationChange = ({ target: { name, value } }) => setReserveForm((current) => ({ ...current, [name]: value }))
   const contactChange = ({ target: { name, value } }) => setContactForm((current) => ({ ...current, [name]: value }))
 
+  // Booking from the public site both registers a new patient account AND creates the
+  // appointment in one flow — there's no separate "book as guest" path, so this always creates
+  // a login-capable account first and uses its patientId for the appointment.
   const submitReservation = async (event) => {
     event.preventDefault()
     if (!reserveForm.appointmentDate || new Date(reserveForm.appointmentDate) <= new Date()) { setFeedback({ type: 'error', text: 'Please select an available time for your appointment.' }); return }
     setIsSubmitting(true)
     try {
-      const auth = await registerPatient({ firstName: reserveForm.firstName.trim(), lastName: reserveForm.lastName.trim(), email: reserveForm.email.trim(), password: reserveForm.password, phone: reserveForm.phone.trim(), dateOfBirth: new Date().toISOString() })
-      setCurrentUser(auth.user)
-      await createAppointment({ patientId: auth.user.patientId, doctorId: reserveForm.doctorId, serviceId: reserveForm.serviceId || null, appointmentDate: new Date(reserveForm.appointmentDate).toISOString(), status: 'Pending', notes: reserveForm.notes.trim() })
-      closeModal(); setFeedback({ type: 'success', text: 'Your appointment was booked and we created your patient account. We’ll confirm the details by email.' })
+      // A signed-in patient already has an account — reuse it instead of registering a new one
+      // (which would fail on the duplicate email or create an unwanted second account).
+      let patientId = currentUser?.patientId
+      if (!patientId) {
+        const auth = await registerPatient({ firstName: reserveForm.firstName.trim(), lastName: reserveForm.lastName.trim(), email: reserveForm.email.trim(), password: reserveForm.password, phone: reserveForm.phone.trim(), dateOfBirth: new Date().toISOString() })
+        const user = saveSession(auth)
+        setCurrentUser(user)
+        patientId = user.patientId
+      }
+      await createAppointment({ patientId, doctorId: reserveForm.doctorId, serviceId: reserveForm.serviceId || null, appointmentDate: new Date(reserveForm.appointmentDate).toISOString(), status: 'Pending', notes: reserveForm.notes.trim() })
+      closeModal(); setFeedback({ type: 'success', text: currentUser ? 'Your appointment was booked. We’ll confirm the details by email.' : 'Your appointment was booked and we created your patient account. We’ll confirm the details by email.' })
     } catch (e) { setFeedback({ type: 'error', text: e.message || 'We could not book the appointment. Please try again.' }) } finally { setIsSubmitting(false) }
   }
   const submitContact = (event) => {
@@ -62,8 +79,10 @@ function App() {
     setContactForm(emptyContact); closeModal(); setFeedback({ type: 'success', text: 'We received your message. Our team will get back to you soon.' })
   }
 
+  // Early returns switch to a full-screen view (login or admin) instead of a route change —
+  // whichever is true short-circuits before the public site JSX below is ever built.
   if (loginView) return <LoginView onCancel={() => setLoginView(false)} onSuccess={(user) => { setCurrentUser(user); setLoginView(false); setAdminView(true) }} />
-  if (adminView) return <AdminPortal user={currentUser} onLogout={() => { clearSession(); setCurrentUser(null); setAdminView(false) }} onExit={() => setAdminView(false)} />
+  if (adminView && currentUser?.role !== 'Patient') return <AdminPortal user={currentUser} onLogout={() => { clearSession(); setCurrentUser(null); setAdminView(false) }} onExit={() => setAdminView(false)} />
 
   return (
     <>
@@ -73,7 +92,9 @@ function App() {
           <button className="border-0 bg-transparent cursor-pointer text-xl text-inherit" onClick={() => setFeedback(null)} aria-label="Dismiss notice"><X className="w-5 h-5" /></button>
         </div>
       )}
-      {page === 'team' ? (
+      {adminView && currentUser?.role === 'Patient' ? (
+        <PatientPortal user={currentUser} onLogout={() => { clearSession(); setCurrentUser(null); setAdminView(false) }} onExit={() => setAdminView(false)} onOpenReservation={openReservation} />
+      ) : page === 'team' ? (
         <TeamPage
           doctors={doctors}
           services={services}
@@ -114,7 +135,7 @@ function App() {
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[1000] p-4" onMouseDown={closeModal} role="presentation">
           <div className={`bg-white rounded-3xl w-full max-h-[90vh] overflow-y-auto shadow-[0_20px_60px_rgba(0,0,0,0.3)] ${modal === 'reserve' ? 'max-w-[1000px]' : 'max-w-[600px]'}`} onMouseDown={(event) => event.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="modal-title">
             <div className="flex items-center justify-between px-7 pt-7 mb-2">
-              <h2 id="modal-title" className="text-2xl text-[#12314a] m-0">{modal === 'reserve' ? 'Reserva tu Cita' : 'Send message'}</h2>
+              <h2 id="modal-title" className="text-2xl text-[#12314a] m-0">{modal === 'reserve' ? 'Book Your Appointment' : 'Send message'}</h2>
               <button className="bg-none border-0 text-[#5d7388] cursor-pointer p-0 w-10 h-10 flex items-center justify-center hover:text-[#12314a]" onClick={closeModal} aria-label="Close"><X className="w-6 h-6" /></button>
             </div>
             {modal === 'reserve' ? (
@@ -126,6 +147,7 @@ function App() {
                 onSubmit={() => submitReservation({ preventDefault: () => {} })}
                 isSubmitting={isSubmitting}
                 error={feedback?.type === 'error' ? feedback.text : null}
+                currentUser={currentUser?.patientId ? currentUser : null}
               />
             ) : (
               <form onSubmit={submitContact} className="px-7 pb-7 flex flex-col gap-4">

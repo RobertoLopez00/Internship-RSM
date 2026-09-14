@@ -22,6 +22,9 @@ export class ApiError extends Error {
   }
 }
 
+// Prefers the backend's own error message (when present) over the generic fallback, so
+// validation errors from the API reach the user verbatim while unexpected failures still get a
+// friendly, translated message instead of a raw status code.
 async function extractError(response, path) {
   let serverMessage = null
   try { serverMessage = (await response.json())?.message || null } catch { /* body not JSON or empty */ }
@@ -36,6 +39,10 @@ function networkError(path, cause) {
   return new ApiError("We couldn't reach the server. Check your connection and try again.", { path, cause })
 }
 
+// Two request helpers, one convention: both normalize network failures and non-2xx responses
+// into ApiError, and both treat 204 (No Content) as "no body to parse" rather than an error.
+// publicRequest is for unauthenticated endpoints (plain fetch); request is for everything behind
+// login and delegates to authorizedFetch, which owns token attachment/refresh (see auth.js).
 async function publicRequest(path, options = {}) {
   let response
   try { response = await fetch(`${API_BASE_URL}${path}`, { ...options, headers: { 'Content-Type': 'application/json', ...options.headers } }) }
@@ -48,6 +55,8 @@ async function request(path, options = {}) {
   let response
   try { response = await authorizedFetch(path, { ...options, headers: { 'Content-Type': 'application/json', ...options.headers } }) }
   catch (cause) {
+    // SessionExpiredError already means "logged out, listener notified" — let it propagate as-is
+    // instead of being re-wrapped as a generic network error.
     if (cause instanceof SessionExpiredError) throw cause
     throw networkError(path, cause)
   }
@@ -56,6 +65,9 @@ async function request(path, options = {}) {
 }
 
 const asJson = (method, body) => ({ method, body: JSON.stringify(body) })
+
+// Below: one thin wrapper per REST endpoint, grouped by resource. Kept intentionally trivial —
+// all the real behavior (auth, error normalization) lives in request()/publicRequest() above.
 
 // Public
 export const getDoctorsPublic = () => publicRequest('/Doctors')
@@ -78,6 +90,7 @@ export const deleteDoctor = (id) => request(`/Doctors/${id}`, { method: 'DELETE'
 
 // Appointments
 export const getAppointments = () => request('/Appointments')
+export const getMyAppointments = () => request('/Appointments/mine')
 export const createAppointment = (data) => request('/Appointments', asJson('POST', data))
 export const updateAppointment = (id, data) => request(`/Appointments/${id}`, asJson('PUT', data))
 export const deleteAppointment = (id) => request(`/Appointments/${id}`, { method: 'DELETE' })

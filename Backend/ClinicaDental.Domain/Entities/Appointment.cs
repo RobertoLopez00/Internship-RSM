@@ -11,6 +11,7 @@ public class Appointment
     public string Notes { get; set; } = string.Empty;
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime? UpdatedAt { get; set; }
+    // Set once a reminder email goes out (see AppointmentReminderService) to prevent re-sending on later poll cycles.
     public DateTime? ReminderSentAt { get; set; }
     public Patient? Patient { get; set; }
     public Doctor? Doctor { get; set; }

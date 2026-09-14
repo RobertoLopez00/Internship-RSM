@@ -18,6 +18,7 @@ public class AppointmentRepository : IAppointmentRepository
         return await _context.Appointments.AsNoTracking().ToListAsync();
     }
 
+    // Tracked (no AsNoTracking) because callers use this for updates and expect EF to detect changes.
     public async Task<Appointment?> GetByIdAsync(Guid id)
     {
         return await _context.Appointments.FirstOrDefaultAsync(a => a.Id == id);

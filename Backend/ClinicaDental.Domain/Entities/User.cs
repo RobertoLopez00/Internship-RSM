@@ -8,6 +8,8 @@ public class User
     public string Role { get; set; } = UserRoles.Patient;
     public string DisplayName { get; set; } = string.Empty;
     public bool IsActive { get; set; } = true;
+    // Only one of PatientId/DoctorId is expected to be set, based on Role — enforced in application
+    // code (see UsersController.LinksAreValid), not by a DB constraint.
     public Guid? PatientId { get; set; }
     public Guid? DoctorId { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;

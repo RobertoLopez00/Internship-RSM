@@ -18,6 +18,7 @@ public class PatientRepository : IPatientRepository
         return await _context.Patients.AsNoTracking().ToListAsync();
     }
 
+    // Tracked (no AsNoTracking) because callers use this for updates and expect EF to detect changes.
     public async Task<Patient?> GetByIdAsync(Guid id)
     {
         return await _context.Patients.FirstOrDefaultAsync(p => p.Id == id);

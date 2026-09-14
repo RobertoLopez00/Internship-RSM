@@ -39,10 +39,13 @@ public class AuthController(AppDbContext context, IJwtTokenService tokens, IConf
     [AllowAnonymous, HttpPost("refresh")]
     public async Task<ActionResult<object>> Refresh(RefreshRequest request)
     {
+        // Refresh tokens are stored only as a hash, never in plaintext, so lookup re-hashes the incoming token.
         var hash = tokens.HashToken(request.RefreshToken);
         var stored = await context.RefreshTokens.Include(x => x.User).SingleOrDefaultAsync(x => x.TokenHash == hash);
         if (stored is null || stored.RevokedAt is not null || stored.ExpiresAt <= DateTime.UtcNow || stored.User is null || !stored.User.IsActive)
             return Unauthorized(new { message = "Your session expired. Please sign in again." });
+        // Rotation: revoke the used token and link it to its replacement, so a stolen/replayed
+        // refresh token can be detected (its replacement chain lets us trace reuse).
         stored.RevokedAt = DateTime.UtcNow;
         var next = await IssueTokens(stored.User);
         stored.ReplacedByTokenHash = tokens.HashToken((string)next.refreshToken);
@@ -66,6 +69,8 @@ public class AuthController(AppDbContext context, IJwtTokenService tokens, IConf
         return user is null ? Unauthorized() : Ok(new { user.Id, user.Email, user.Role, user.DisplayName, user.PatientId, user.DoctorId });
     }
 
+    // Issues a short-lived access token plus a long-lived refresh token; only the refresh token's
+    // hash is persisted, and the raw value is returned to the client exactly once.
     private async Task<dynamic> IssueTokens(User user)
     {
         var rawRefresh = tokens.CreateRefreshToken();
