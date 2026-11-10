@@ -167,15 +167,14 @@ Once authorized in Swagger (see above), try these against a fresh database. Each
 **1. Create a doctor** — `POST /api/doctors` (Admin)
 ```json
 {
-  "name": "Carlos",
+  "firstName": "Carlos",
   "lastName": "López",
   "specialty": "Orthodontics",
   "phone": "555-1234",
-  "email": "carlos@dentalcare.com",
-  "isActive": true
+  "email": "carlos@dentalcare.com"
 }
 ```
-Copy the `id` from the response — you'll need it as `doctorId` below.
+`specialty` is a name from the catalog (`GET /api/specialties`); a new name is added to it, matched without regard to case. `phone` is optional. Copy the `id` from the response — you'll need it as `doctorId` below.
 
 **2. Create a patient** — `POST /api/patients` (Admin or Receptionist)
 ```json
@@ -184,11 +183,10 @@ Copy the `id` from the response — you'll need it as `doctorId` below.
   "lastName": "Pérez",
   "email": "juan@example.com",
   "phone": "555-5678",
-  "dateOfBirth": "1990-01-15T00:00:00Z",
-  "isActive": true
+  "dateOfBirth": "1990-01-15"
 }
 ```
-Copy the `id` from the response — you'll need it as `patientId` below.
+`dateOfBirth` is a plain `yyyy-mm-dd` date, or `null` when unknown; `phone` is optional. Emails are unique per patient (and per doctor), ignoring case. Copy the `id` from the response — you'll need it as `patientId` below.
 
 **3. Create a service** — `POST /api/services` (Admin or Receptionist)
 ```json
@@ -208,11 +206,11 @@ Copy the `id` from the response — you'll need it as `patientId` below.
   "doctorId": "<doctorId from step 1>",
   "serviceId": "<serviceId from step 3, or null>",
   "appointmentDate": "2026-09-10T14:00:00Z",
-  "status": "Pendiente",
+  "status": "Pending",
   "notes": "First visit"
 }
 ```
-Valid `status` values: `Pendiente`, `Confirmada`, `Completada`, `Cancelada`, `No asistió`. The date must be in the future. Try sending the same `patientId`/`doctorId`/`appointmentDate` twice — the second call returns `409 Conflict` (the doctor already has a booking at that time).
+Valid `status` values: `Pending`, `Confirmed`, `Completed`, `Cancelled`, `NoShow` (the enum names; numbers and labels such as `No-show` return `400`). The date must be in the future. The appointment lasts as long as its service (30 minutes without one). Try booking the same doctor for a time that overlaps it — the call returns `409 Conflict` (the doctor already has a booking at that time). The same patient can't have two overlapping appointments either, even with different doctors.
 
 **5. Create a treatment** — `POST /api/treatments` (Admin, Doctor, or Receptionist)
 ```json
@@ -220,14 +218,14 @@ Valid `status` values: `Pendiente`, `Confirmada`, `Completada`, `Cancelada`, `No
   "patientId": "<patientId from step 2>",
   "doctorId": "<doctorId from step 1>",
   "name": "Root canal",
-  "status": "Planificado",
+  "status": "Planned",
   "startDate": "2026-09-10T00:00:00Z",
   "endDate": null,
   "cost": 300,
   "observations": "Upper left molar"
 }
 ```
-Valid `status` values: `Planificado`, `En curso`, `Completado`, `Cancelado`. Copy the `id` from the response — you'll need it as `treatmentId` below.
+Valid `status` values: `Planned`, `InProgress`, `Completed`, `Cancelled`. `endDate` can't be before `startDate`. Copy the `id` from the response — you'll need it as `treatmentId` below.
 
 **6. Register a payment** — `POST /api/treatments/{treatmentId}/payments` (Admin or Receptionist)
 ```json
@@ -238,7 +236,7 @@ Valid `status` values: `Planificado`, `En curso`, `Completado`, `Cancelado`. Cop
   "notes": "First installment"
 }
 ```
-Try sending an `amount` greater than the treatment's remaining balance (`cost` minus payments so far) — it returns `400 Bad Request`.
+`method` is one of `Cash`, `CreditCard`, `DebitCard`, `BankTransfer`, `Insurance`, `Other`. Try sending an `amount` greater than the treatment's remaining balance (`cost` minus payments so far) — it returns `400 Bad Request`.
 
 **7. Update the dental record** — `PUT /api/patients/{patientId}/record` (Admin or Doctor)
 ```json

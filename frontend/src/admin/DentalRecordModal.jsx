@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react'
-import { addConsultation, getDentalRecord, getDoctors, upsertDentalRecord } from '../services/api'
+import { addConsultation, getAppointments, getDentalRecord, getDoctors, statusLabel, upsertDentalRecord } from '../services/api'
 import { formatDateTime, Notice, Spinner } from './shared'
 
 const blankRecord = { medicalHistory: '', allergies: '', medications: '', observations: '' }
-const blankConsultation = { doctorId: '', consultationDate: '', notes: '', diagnosis: '' }
+const blankConsultation = { doctorId: '', consultationDate: '', notes: '', diagnosis: '', appointmentId: '' }
 
 const inputCls = "px-4 py-3 border border-sky-500/30 rounded-xl text-base font-sans focus:outline-none focus:border-sky-500 focus:bg-sky-500/5 focus:shadow-[0_0_0_3px_rgba(14,165,233,0.1)]"
 const ctaCls = "border-0 rounded-full px-5 py-3 font-bold cursor-pointer transition-transform hover:-translate-y-px bg-gradient-to-br from-sky-500 to-teal-500 text-white shadow-[0_12px_24px_rgba(20,184,166,0.22)] disabled:opacity-70 disabled:cursor-wait"
@@ -15,6 +15,7 @@ export default function DentalRecordModal({ patient, canEdit, onClose }) {
   const [record, setRecord] = useState(null)
   const [form, setForm] = useState(blankRecord)
   const [doctors, setDoctors] = useState([])
+  const [appointments, setAppointments] = useState([])
   const [consultForm, setConsultForm] = useState(blankConsultation)
   const [notice, setNotice] = useState(null)
   const [saving, setSaving] = useState(false)
@@ -23,18 +24,19 @@ export default function DentalRecordModal({ patient, canEdit, onClose }) {
   const load = async () => {
     setLoading(true)
     try {
-      // A patient with no dental record yet returns 404, not an empty record — that's expected
-      // (not an error) and just means the form starts blank and must be saved once before
-      // consultations can be logged (see the notice at the bottom of the form).
-      const [rec, docs] = await Promise.all([
-        getDentalRecord(patient.id).catch((e) => (e.message?.includes('404') ? null : Promise.reject(e))),
+      // A patient with no dental record yet returns 404, not an empty record. That's expected: the form
+      // starts blank, and saving it or logging the first consultation creates the record.
+      const [rec, docs, appts] = await Promise.all([
+        getDentalRecord(patient.id).catch((e) => (e.status === 404 ? null : Promise.reject(e))),
         getDoctors(),
+        canEdit ? getAppointments() : Promise.resolve([]),
       ])
       setRecord(rec)
       // `form` is a separate draft copy of `record`'s fields, not `record` itself — this lets
       // the textarea edits stay uncommitted (and cancelable by closing the modal) until Save.
       setForm(rec ? { medicalHistory: rec.medicalHistory || '', allergies: rec.allergies || '', medications: rec.medications || '', observations: rec.observations || '' } : blankRecord)
       setDoctors(docs)
+      setAppointments(appts.filter((a) => a.patientId === patient.id).sort((a, b) => new Date(b.appointmentDate) - new Date(a.appointmentDate)))
     } catch { setNotice({ type: 'error', text: 'Could not load the dental record.' }) } finally { setLoading(false) }
   }
   useEffect(() => { load() }, [patient.id])
@@ -50,7 +52,7 @@ export default function DentalRecordModal({ patient, canEdit, onClose }) {
     event.preventDefault()
     setAddingConsult(true)
     try {
-      await addConsultation(patient.id, { ...consultForm, consultationDate: new Date(consultForm.consultationDate).toISOString() })
+      await addConsultation(patient.id, { ...consultForm, appointmentId: consultForm.appointmentId || null, consultationDate: new Date(consultForm.consultationDate).toISOString() })
       setConsultForm(blankConsultation)
       setNotice({ type: 'success', text: 'Consultation added.' })
       load()
@@ -79,24 +81,28 @@ export default function DentalRecordModal({ patient, canEdit, onClose }) {
           <tbody>
             {(!record || record.consultations?.length === 0) && <tr><td colSpan={4} className="text-[#8a9cab] py-6 text-center">No consultations recorded yet.</td></tr>}
             {record?.consultations?.slice().sort((a, b) => new Date(b.consultationDate) - new Date(a.consultationDate)).map((c) => <tr key={c.id} className="hover:bg-[#f9fbfd]">
-              <td className={tdCls}>{formatDateTime(c.consultationDate)}</td><td className={tdCls}>Dr. {c.doctor?.name} {c.doctor?.lastName}</td><td className={tdCls}>{c.diagnosis || '—'}</td><td className={tdCls}>{c.notes}</td>
+              <td className={tdCls}>{formatDateTime(c.consultationDate)}</td><td className={tdCls}>Dr. {c.doctor?.firstName} {c.doctor?.lastName}</td><td className={tdCls}>{c.diagnosis || '—'}</td><td className={tdCls}>{c.notes}</td>
             </tr>)}
           </tbody>
         </table></div>
 
-        {canEdit && record && <form className="px-7 pb-7 pt-4 flex flex-col gap-4" onSubmit={saveConsultation}>
+        {canEdit && <form className="px-7 pb-7 pt-4 flex flex-col gap-4" onSubmit={saveConsultation}>
           <h3 className="m-0">New consultation</h3>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <select className={inputCls} value={consultForm.doctorId} onChange={(e) => setConsultForm({ ...consultForm, doctorId: e.target.value })} required>
-              <option value="">Select doctor</option>{doctors.map((d) => <option key={d.id} value={d.id}>Dr. {d.name} {d.lastName}</option>)}
+              <option value="">Select doctor</option>{doctors.filter((d) => d.isActive || d.id === consultForm.doctorId).map((d) => <option key={d.id} value={d.id}>Dr. {d.firstName} {d.lastName}</option>)}
             </select>
             <input className={inputCls} type="datetime-local" value={consultForm.consultationDate} onChange={(e) => setConsultForm({ ...consultForm, consultationDate: e.target.value })} required />
           </div>
+          {/* Each appointment can have at most one consultation; ones already used are left out. */}
+          <select className={inputCls} value={consultForm.appointmentId} onChange={(e) => setConsultForm({ ...consultForm, appointmentId: e.target.value })}>
+            <option value="">Not linked to an appointment</option>
+            {appointments.filter((a) => !record?.consultations?.some((c) => c.appointmentId === a.id)).map((a) => <option key={a.id} value={a.id}>{formatDateTime(a.appointmentDate)} · {statusLabel(a.status)}</option>)}
+          </select>
           <input className={inputCls} placeholder="Diagnosis (optional)" value={consultForm.diagnosis} onChange={(e) => setConsultForm({ ...consultForm, diagnosis: e.target.value })} />
           <textarea className={inputCls} placeholder="Consultation notes" rows="3" value={consultForm.notes} onChange={(e) => setConsultForm({ ...consultForm, notes: e.target.value })} required />
           <button className={ctaCls} disabled={addingConsult}>{addingConsult ? 'Saving…' : 'Add consultation'}</button>
         </form>}
-        {canEdit && !record && <p className="px-7 pb-7 bg-green-100 text-green-800 mx-7 rounded-xl p-3">Save the dental record first to be able to log consultations.</p>}
       </>}
     </div>
   </div>

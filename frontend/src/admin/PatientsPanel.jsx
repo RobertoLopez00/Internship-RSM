@@ -11,6 +11,7 @@ const ctaSmallCls = "bg-gradient-to-br from-sky-500 to-teal-500 text-white borde
 const iconBtnCls = "border border-slate-300 bg-white rounded-lg px-2.5 py-1.5 cursor-pointer text-sm font-semibold text-[#28749b] hover:bg-[#eef6fb] disabled:opacity-50 disabled:cursor-not-allowed"
 const iconBtnDangerCls = "border border-red-200 bg-white rounded-lg px-2.5 py-1.5 cursor-pointer text-sm font-semibold text-red-700 hover:bg-red-50 disabled:opacity-50 disabled:cursor-not-allowed"
 
+// canDelete is the admin permission: deactivating and changing the Active flag.
 export default function PatientsPanel({ canEdit, canDelete }) {
   const [patients, setPatients] = useState([])
   const [loading, setLoading] = useState(true)
@@ -30,7 +31,8 @@ export default function PatientsPanel({ canEdit, canDelete }) {
     event.preventDefault()
     setSaving(true)
     try {
-      const payload = { ...form, dateOfBirth: form.dateOfBirth ? new Date(form.dateOfBirth).toISOString() : new Date().toISOString() }
+      // The date of birth is a plain yyyy-mm-dd date, or null when unknown.
+      const payload = { firstName: form.firstName, lastName: form.lastName, email: form.email, phone: form.phone.trim() || null, dateOfBirth: form.dateOfBirth || null, ...(canDelete && form.id ? { isActive: form.isActive } : {}) }
       if (form.id) await updatePatient(form.id, payload)
       else await createPatient(payload)
       setNotice({ type: 'success', text: form.id ? 'Patient updated.' : 'Patient registered.' })
@@ -39,8 +41,9 @@ export default function PatientsPanel({ canEdit, canDelete }) {
   }
 
   const remove = (patient) => ask({
-    title: 'Delete patient', message: `Delete ${patient.firstName} ${patient.lastName}? This action cannot be undone.`,
-    onConfirm: async () => { try { await deletePatient(patient.id); setNotice({ type: 'success', text: 'Patient deleted.' }); load() } catch (e) { setNotice({ type: 'error', text: e.message }) } },
+    title: 'Deactivate patient', message: `Deactivate ${patient.firstName} ${patient.lastName}? Their history is kept and their login is disabled. You can reactivate them later by editing their status.`,
+    confirmLabel: 'Deactivate',
+    onConfirm: async () => { try { await deletePatient(patient.id); setNotice({ type: 'success', text: 'Patient deactivated.' }); load() } catch (e) { setNotice({ type: 'error', text: e.message }) } },
   })
 
   return <section className="bg-white border border-[#e2edf4] rounded-2xl p-5.5 shadow-[0_6px_18px_rgba(23,51,74,0.04)]">
@@ -60,12 +63,12 @@ export default function PatientsPanel({ canEdit, canDelete }) {
         {!loading && patients.map((p) => <tr key={p.id} className="hover:bg-[#f9fbfd]">
           <td className="px-3 py-3 border-b border-[#edf2f6] align-middle">{p.firstName} {p.lastName}</td>
           <td className="px-3 py-3 border-b border-[#edf2f6] align-middle">{p.email}<br /><small>{p.phone}</small></td>
-          <td className="px-3 py-3 border-b border-[#edf2f6] align-middle">{p.dateOfBirth ? new Date(p.dateOfBirth).toLocaleDateString('en-US') : '—'}</td>
+          <td className="px-3 py-3 border-b border-[#edf2f6] align-middle">{p.dateOfBirth ? new Date(`${p.dateOfBirth}T00:00:00`).toLocaleDateString('en-US') : '—'}</td>
           <td className="px-3 py-3 border-b border-[#edf2f6] align-middle">{p.isActive ? 'Active' : 'Inactive'}</td>
           <td className="px-3 py-3 border-b border-[#edf2f6] align-middle flex gap-2 justify-end flex-wrap">
             <button className={iconBtnCls} onClick={() => setRecordPatient(p)}>Dental record</button>
-            {canEdit && <button className={iconBtnCls} onClick={() => setForm({ ...p, dateOfBirth: p.dateOfBirth?.slice(0, 10) })}>Edit</button>}
-            {canDelete && <button className={iconBtnDangerCls} onClick={() => remove(p)}>Delete</button>}
+            {canEdit && <button className={iconBtnCls} onClick={() => setForm({ ...p, phone: p.phone || '', dateOfBirth: p.dateOfBirth || '' })}>Edit</button>}
+            {canDelete && p.isActive && <button className={iconBtnDangerCls} onClick={() => remove(p)}>Deactivate</button>}
           </td>
         </tr>)}
       </tbody>
@@ -76,8 +79,8 @@ export default function PatientsPanel({ canEdit, canDelete }) {
       <form className="px-7 pb-7 flex flex-col gap-4" onSubmit={save}>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3"><input className={inputCls} placeholder="First name" value={form.firstName} onChange={(e) => setForm({ ...form, firstName: e.target.value })} required /><input className={inputCls} placeholder="Last name" value={form.lastName} onChange={(e) => setForm({ ...form, lastName: e.target.value })} required /></div>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3"><input className={inputCls} type="email" placeholder="Email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} required /><input className={inputCls} placeholder="Phone" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} /></div>
-        <input className={inputCls} type="date" value={form.dateOfBirth} onChange={(e) => setForm({ ...form, dateOfBirth: e.target.value })} />
-        {form.id && <label className="flex items-center gap-2"><input type="checkbox" checked={form.isActive} onChange={(e) => setForm({ ...form, isActive: e.target.checked })} /> Active</label>}
+        <label className="flex flex-col gap-1 text-sm font-semibold text-[#38566b]">Date of birth (optional)<input className={inputCls} type="date" value={form.dateOfBirth} onChange={(e) => setForm({ ...form, dateOfBirth: e.target.value })} /></label>
+        {form.id && canDelete && <label className="flex items-center gap-2"><input type="checkbox" checked={form.isActive} onChange={(e) => setForm({ ...form, isActive: e.target.checked })} /> Active</label>}
         <button className={ctaCls} disabled={saving}>{saving ? 'Saving…' : 'Save'}</button>
       </form>
     </div></div>}

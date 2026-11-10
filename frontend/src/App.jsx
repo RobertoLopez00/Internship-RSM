@@ -65,7 +65,7 @@ function App() {
       // (which would fail on the duplicate email or create an unwanted second account).
       let patientId = currentUser?.patientId
       if (!patientId) {
-        const auth = await registerPatient({ firstName: reserveForm.firstName.trim(), lastName: reserveForm.lastName.trim(), email: reserveForm.email.trim(), password: reserveForm.password, phone: reserveForm.phone.trim(), dateOfBirth: new Date().toISOString() })
+        const auth = await registerPatient({ firstName: reserveForm.firstName.trim(), lastName: reserveForm.lastName.trim(), email: reserveForm.email.trim(), password: reserveForm.password, phone: reserveForm.phone.trim(), dateOfBirth: null })
         const user = saveSession(auth)
         setCurrentUser(user)
         patientId = user.patientId

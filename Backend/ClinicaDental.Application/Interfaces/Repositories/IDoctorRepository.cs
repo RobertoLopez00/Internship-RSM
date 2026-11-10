@@ -4,9 +4,17 @@ namespace ClinicaDental.Application.Interfaces.Repositories;
 
 public interface IDoctorRepository
 {
-    Task<IEnumerable<Doctor>> GetAllAsync();
+    // Includes Specialty.
+    Task<List<Doctor>> GetAllAsync(bool activeOnly);
+    // Tracked, includes Specialty.
     Task<Doctor?> GetByIdAsync(Guid id);
+    Task<bool> EmailInUseAsync(string email, Guid? exceptId = null);
+    Task<bool> HasUpcomingAppointmentsAsync(Guid id);
+    // Finds the specialty by name (case-insensitive) or adds it to the catalog. Doesn't save.
+    Task<Specialty> GetOrAddSpecialtyAsync(string name);
+    Task<List<string>> GetSpecialtyNamesAsync();
     Task AddAsync(Doctor doctor);
-    Task UpdateAsync(Doctor doctor);
-    Task DeleteAsync(Guid id);
+    // Changes the profile and its login together. Doesn't save.
+    Task SetActiveAsync(Doctor doctor, bool isActive);
+    Task SaveChangesAsync();
 }

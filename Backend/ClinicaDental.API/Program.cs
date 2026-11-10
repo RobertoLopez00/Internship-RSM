@@ -12,7 +12,14 @@ using Microsoft.EntityFrameworkCore;
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddControllers().AddJsonOptions(options =>
-    options.JsonSerializerOptions.ReferenceHandler = System.Text.Json.Serialization.ReferenceHandler.IgnoreCycles);
+{
+    options.JsonSerializerOptions.ReferenceHandler = System.Text.Json.Serialization.ReferenceHandler.IgnoreCycles;
+    // Statuses travel as their names ("NoShow"). Numbers and old labels ("No-show") are rejected with 400.
+    options.JsonSerializerOptions.Converters.Add(new System.Text.Json.Serialization.JsonStringEnumConverter(allowIntegerValues: false));
+});
+// Constraint violations and concurrency conflicts become 409 instead of 500 (see DbUpdateExceptionHandler).
+builder.Services.AddExceptionHandler<DbUpdateExceptionHandler>();
+builder.Services.AddProblemDetails();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(options =>
 {
@@ -45,6 +52,7 @@ builder.Services.AddScoped<IEmailSender, SmtpEmailSender>();
 // Runs as a background hosted service for the lifetime of the app, periodically scanning for
 // upcoming appointments and sending reminder emails (see AppointmentReminderService).
 builder.Services.AddHostedService<AppointmentReminderService>();
+builder.Services.AddHostedService<RefreshTokenCleanupService>();
 
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection") ??
     "Server=(localdb)\\mssqllocaldb;Database=ClinicaDentalDb;Trusted_Connection=True;TrustServerCertificate=True;";
@@ -101,6 +109,8 @@ using (var scope = app.Services.CreateScope())
 
     if (configuration.GetValue("SeedSampleData", true)) ClinicaDental.API.SeedData.SeedSampleData(db);
 }
+
+app.UseExceptionHandler();
 
 // Order matters: CORS must run before auth so preflight requests aren't rejected,
 // and Authentication must run before Authorization so User.Identity is populated before role checks.

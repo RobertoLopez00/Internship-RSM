@@ -87,6 +87,7 @@ export const getDoctors = () => request('/Doctors')
 export const createDoctor = (data) => request('/Doctors', asJson('POST', data))
 export const updateDoctor = (id, data) => request(`/Doctors/${id}`, asJson('PUT', data))
 export const deleteDoctor = (id) => request(`/Doctors/${id}`, { method: 'DELETE' })
+export const getSpecialties = () => request('/specialties')
 
 // Appointments
 export const getAppointments = () => request('/Appointments')
@@ -94,7 +95,8 @@ export const getMyAppointments = () => request('/Appointments/mine')
 export const createAppointment = (data) => request('/Appointments', asJson('POST', data))
 export const updateAppointment = (id, data) => request(`/Appointments/${id}`, asJson('PUT', data))
 export const deleteAppointment = (id) => request(`/Appointments/${id}`, { method: 'DELETE' })
-export const AppointmentStatuses = ['Pending', 'Confirmed', 'Completed', 'Cancelled', 'No-show']
+// The API sends and accepts statuses by enum name ("NoShow"); these are only the labels shown to people.
+export const AppointmentStatuses = ['Pending', 'Confirmed', 'Completed', 'Cancelled', 'NoShow']
 
 // Services
 export const getServices = () => request('/services')
@@ -108,7 +110,13 @@ export const getTreatment = (id) => request(`/treatments/${id}`)
 export const createTreatment = (data) => request('/treatments', asJson('POST', data))
 export const updateTreatment = (id, data) => request(`/treatments/${id}`, asJson('PUT', data))
 export const addPayment = (treatmentId, data) => request(`/treatments/${treatmentId}/payments`, asJson('POST', data))
-export const TreatmentStatuses = ['Planned', 'In progress', 'Completed', 'Cancelled']
+export const TreatmentStatuses = ['Planned', 'InProgress', 'Completed', 'Cancelled']
+// Closed list, checked by the API and the database.
+export const PaymentMethods = ['Cash', 'CreditCard', 'DebitCard', 'BankTransfer', 'Insurance', 'Other']
+
+const LABELS = { NoShow: 'No-show', InProgress: 'In progress', CreditCard: 'Credit card', DebitCard: 'Debit card', BankTransfer: 'Bank transfer' }
+export const statusLabel = (value) => LABELS[value] || value
+export const paymentMethodLabel = statusLabel
 
 // Users
 export const getUsers = () => request('/users')

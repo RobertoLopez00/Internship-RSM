@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { AppointmentStatuses, createAppointment, deleteAppointment, getAppointments, getDoctors, getPatients, getServices, updateAppointment } from '../services/api'
+import { AppointmentStatuses, statusLabel, createAppointment, deleteAppointment, getAppointments, getDoctors, getPatients, getServices, updateAppointment } from '../services/api'
 import { EmptyRow, formatDateTime, LoadingRow, Notice, StatusBadge, useConfirm } from './shared'
 
 const localDateTime = (date = new Date()) => new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().slice(0, 16)
@@ -35,6 +35,9 @@ export default function AppointmentsPanel({ canEdit, canDelete }) {
   useEffect(() => { load() }, [])
 
   const nameOf = (list, id) => list.find((x) => x.id === id)
+  // The form only offers active patients, doctors and services, plus whatever the edited appointment
+  // already uses, so an old appointment still shows its (now inactive) doctor instead of a blank select.
+  const selectable = (list, currentId) => list.filter((x) => x.isActive || x.id === currentId)
 
   const openEdit = (appointment) => setForm({ ...appointment, appointmentDate: localDateTime(new Date(appointment.appointmentDate)), serviceId: appointment.serviceId || '' })
 
@@ -73,9 +76,9 @@ export default function AppointmentsPanel({ canEdit, canDelete }) {
           return <tr key={a.id} className="hover:bg-[#f9fbfd]">
             <td className={tdCls}>{formatDateTime(a.appointmentDate)}</td>
             <td className={tdCls}>{patient ? `${patient.firstName} ${patient.lastName}` : '—'}</td>
-            <td className={tdCls}>{doctor ? `Dr. ${doctor.name} ${doctor.lastName}` : '—'}</td>
+            <td className={tdCls}>{doctor ? `Dr. ${doctor.firstName} ${doctor.lastName}` : '—'}</td>
             <td className={tdCls}>{service?.name || '—'}</td>
-            <td className={tdCls}>{canEdit ? <select className="border border-slate-300 rounded-lg px-2 py-1.5" value={a.status} onChange={(e) => changeStatus(a, e.target.value)}>{AppointmentStatuses.map((s) => <option key={s}>{s}</option>)}</select> : <StatusBadge status={a.status} />}</td>
+            <td className={tdCls}>{canEdit ? <select className="border border-slate-300 rounded-lg px-2 py-1.5" value={a.status} onChange={(e) => changeStatus(a, e.target.value)}>{AppointmentStatuses.map((s) => <option key={s} value={s}>{statusLabel(s)}</option>)}</select> : <StatusBadge status={a.status} />}</td>
             <td className={`${tdCls} flex gap-2 justify-end flex-wrap`}>{canEdit && <button className={iconBtnCls} onClick={() => openEdit(a)}>Edit</button>}{canDelete && <button className={iconBtnDangerCls} onClick={() => remove(a)}>Delete</button>}</td>
           </tr>
         })}
@@ -87,19 +90,19 @@ export default function AppointmentsPanel({ canEdit, canDelete }) {
       {formError && <div className="text-red-700 text-sm mt-1 px-7">{formError}</div>}
       <form className="px-7 pb-7 flex flex-col gap-4" onSubmit={save}>
         <select className={inputCls} value={form.patientId} onChange={(e) => setForm({ ...form, patientId: e.target.value })} required>
-          <option value="">Select patient</option>{patients.map((p) => <option key={p.id} value={p.id}>{p.firstName} {p.lastName}</option>)}
+          <option value="">Select patient</option>{selectable(patients, form.patientId).map((p) => <option key={p.id} value={p.id}>{p.firstName} {p.lastName}</option>)}
         </select>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <select className={inputCls} value={form.doctorId} onChange={(e) => setForm({ ...form, doctorId: e.target.value })} required>
-            <option value="">Select doctor</option>{doctors.map((d) => <option key={d.id} value={d.id}>Dr. {d.name} {d.lastName}</option>)}
+            <option value="">Select doctor</option>{selectable(doctors, form.doctorId).map((d) => <option key={d.id} value={d.id}>Dr. {d.firstName} {d.lastName}</option>)}
           </select>
           <select className={inputCls} value={form.serviceId} onChange={(e) => setForm({ ...form, serviceId: e.target.value })}>
-            <option value="">No specific service</option>{services.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+            <option value="">No specific service</option>{selectable(services, form.serviceId).map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
           </select>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <input className={inputCls} type="datetime-local" value={form.appointmentDate} onChange={(e) => setForm({ ...form, appointmentDate: e.target.value })} required />
-          <select className={inputCls} value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })}>{AppointmentStatuses.map((s) => <option key={s}>{s}</option>)}</select>
+          <select className={inputCls} value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })}>{AppointmentStatuses.map((s) => <option key={s} value={s}>{statusLabel(s)}</option>)}</select>
         </div>
         <textarea className={inputCls} placeholder="Notes" rows="3" value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} />
         <button className={ctaCls} disabled={saving}>{saving ? 'Saving…' : 'Save appointment'}</button>

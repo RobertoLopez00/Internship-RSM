@@ -43,7 +43,7 @@ public class AuthTests : IClassFixture<ClinicaAppFactory>
         var (adminToken, _, _) = await LoginAsync(client, AdminEmail, AdminPassword);
 
         var doctorEmail = $"doctor-{Guid.NewGuid():N}@test.local";
-        var createDoctor = await client.WithToken(adminToken).PostAsJsonAsync("/api/doctors", new { name = "Ana", lastName = "Ruiz", specialty = "General", phone = "555", email = "ana@test.local", isActive = true });
+        var createDoctor = await client.WithToken(adminToken).PostAsJsonAsync("/api/doctors", new { firstName = "Ana", lastName = "Ruiz", specialty = "General", phone = "555", email = "ana@test.local" });
         createDoctor.EnsureSuccessStatusCode();
         var doctorId = (await createDoctor.Content.ReadFromJsonAsync<System.Text.Json.JsonElement>()).GetProperty("id").GetGuid();
 

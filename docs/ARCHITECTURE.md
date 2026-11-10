@@ -76,10 +76,16 @@ actual es mixto.
 3. El controller valida las reglas de negocio directamente en el método de
    acción:
    - la fecha de la cita debe estar en el futuro,
-   - el estado debe ser uno de los `AppointmentStatuses` permitidos,
+   - el estado debe ser un miembro del enum `AppointmentStatus` (la API lo
+     recibe por nombre, por ejemplo `"NoShow"`; un número o una etiqueta
+     vieja responde 400 antes de llegar al controller),
    - el paciente/doctor/servicio deben existir y estar activos,
-   - no debe existir otra cita para ese doctor exactamente a esa hora
-     (verificación de conflicto).
+   - la cita dura lo que su servicio (30 minutos sin servicio) y no puede
+     superponerse con otra cita activa del mismo doctor ni del mismo
+     paciente (`OverlapsAsync` y `PatientBusyAsync`). Para que dos reservas
+     simultáneas no pasen las dos esa verificación, la reserva cambia
+     `Doctor.ScheduleStamp` y `Patient.ScheduleStamp` (tokens de
+     concurrencia) en el mismo `SaveChanges`; la segunda recibe 409.
 4. Si todo es correcto, llama a `_appointmentRepository.AddAsync(appointment)`
    (capa Infrastructure → EF Core → SQL Server), y luego envía un correo de
    confirmación mediante `IEmailSender`.
@@ -109,7 +115,9 @@ Se emiten dos tokens juntos al iniciar sesión/registrarse
   *no* es un JWT. Nunca se envía tal cual a la base de datos: solo se guarda
   su hash SHA-256 (`HashToken`) en la tabla `RefreshTokens`, junto con una
   fecha de expiración (`Jwt:RefreshTokenDays`, 7 días por defecto) y un
-  registro de auditoría `RevokedAt`/`ReplacedByTokenHash`. Guardar solo el
+  registro de auditoría `RevokedAt`/`ReplacedByTokenId` (una FK al token
+  que lo reemplazó). `RefreshTokenCleanupService` borra a diario los tokens
+  vencidos hace más de 30 días. Guardar solo el
   hash significa que una base de datos filtrada no entrega refresh tokens
   utilizables.
 
@@ -119,7 +127,7 @@ Se emiten dos tokens juntos al iniciar sesión/registrarse
 POST /api/auth/login  { email, password }
   → AuthController.Login
   → PasswordHasher<User>.VerifyHashedPassword(...)   (el hasher de ASP.NET Identity, tipo bcrypt)
-  → IssueTokens(user): crea y guarda el access token y el refresh token
+  → IssueTokens(user): crea el access token y agrega el refresh token; Login guarda con SaveChanges
   → 200 OK { accessToken, refreshToken, user }
 ```
 
@@ -128,7 +136,13 @@ POST /api/auth/login  { email, password }
 una sola transacción (`context.AddRange(patient, user)`), y luego emite los
 tokens de la misma manera — por eso el flujo de "reservar y registrarse" puede
 ocurrir como un solo paso de "crea mi cuenta con esta cita" dentro del
-asistente.
+asistente. Si ya existe un paciente con ese email, responde 409 y no crea
+ni vincula nada: saber el email de alguien no debe bastar para tomar su
+expediente. Un Admin vincula la cuenta desde Usuarios.
+
+El nombre que viaja en el claim `name` y en `user.displayName` sale de
+`User.GetDisplayName()`: para Patient y Doctor se arma desde el perfil
+vinculado, y solo Admin y Receptionist guardan `DisplayName` en la tabla.
 
 ### 3.3 Cómo valida la API un token en cada petición
 

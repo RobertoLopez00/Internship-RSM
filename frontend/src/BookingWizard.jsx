@@ -124,10 +124,10 @@ export default function BookingWizard({ services, doctors, form, onChange, onSub
                         <div className="flex flex-col gap-space-xs pr-space-md">
                           <h3 className="font-title-md text-title-md text-primary font-bold">{service.name}</h3>
                           {service.description && <p className="font-body-sm text-body-sm text-on-surface-variant">{service.description}</p>}
-                          {typeof service.price === 'number' && (
+                          {typeof service.basePrice === 'number' && (
                             <div className="flex items-center gap-space-xs mt-space-xs text-secondary font-label-sm text-label-sm">
                               <Icon name="payments" className="text-[16px]" />
-                              <span>{service.price.toLocaleString('en-US', { style: 'currency', currency: 'EUR' })}</span>
+                              <span>{service.basePrice.toLocaleString('en-US', { style: 'currency', currency: 'EUR' })}</span>
                             </div>
                           )}
                         </div>
@@ -155,11 +155,11 @@ export default function BookingWizard({ services, doctors, form, onChange, onSub
                     >
                       <div className="flex items-start gap-space-md">
                         <div className="w-14 h-14 rounded-xl bg-secondary-container/40 text-on-secondary-container flex items-center justify-center shrink-0 font-headline-sm text-headline-sm font-bold">
-                          {doctor.name?.[0]}{doctor.lastName?.[0]}
+                          {doctor.firstName?.[0]}{doctor.lastName?.[0]}
                         </div>
                         <div className="flex flex-col">
                           <span className="font-label-sm text-label-sm text-secondary font-semibold">{doctor.specialty}</span>
-                          <h3 className="font-title-md text-title-md text-primary font-bold">Dr. {doctor.name} {doctor.lastName}</h3>
+                          <h3 className="font-title-md text-title-md text-primary font-bold">Dr. {doctor.firstName} {doctor.lastName}</h3>
                         </div>
                       </div>
                     </button>
@@ -177,6 +177,7 @@ export default function BookingWizard({ services, doctors, form, onChange, onSub
                 <div className="bg-surface-container-lowest p-space-md sm:p-space-lg rounded-xl shadow-sm">
                   <TimeSlotPicker
                     doctorId={form.doctorId}
+                    durationMinutes={selectedService?.durationMinutes}
                     value={form.appointmentDate}
                     onChange={(next) => setField('appointmentDate', next)}
                   />
@@ -320,7 +321,7 @@ export default function BookingWizard({ services, doctors, form, onChange, onSub
                   </div>
                   <div className="flex flex-col min-w-0">
                     <span className="font-label-sm text-label-sm text-on-surface-variant">Specialist</span>
-                    <span className="font-body-md text-body-md text-primary font-semibold truncate">{selectedDoctor ? `Dr. ${selectedDoctor.name} ${selectedDoctor.lastName}` : 'Not selected'}</span>
+                    <span className="font-body-md text-body-md text-primary font-semibold truncate">{selectedDoctor ? `Dr. ${selectedDoctor.firstName} ${selectedDoctor.lastName}` : 'Not selected'}</span>
                   </div>
                 </div>
                 <div className="flex items-start gap-space-sm">

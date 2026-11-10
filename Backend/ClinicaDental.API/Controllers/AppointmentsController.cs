@@ -14,6 +14,9 @@ namespace ClinicaDental.API.Controllers;
 [Route("api/[controller]")]
 public class AppointmentsController : ControllerBase
 {
+    private const string DoctorBusyMessage = "The doctor already has an appointment at that time.";
+    private const string PatientBusyMessage = "The patient already has another appointment at that time.";
+
     private readonly IAppointmentRepository _appointmentRepository;
     private readonly AppDbContext _context;
     private readonly IEmailSender _emailSender;
@@ -50,9 +53,10 @@ public class AppointmentsController : ControllerBase
             {
                 x.Id,
                 x.AppointmentDate,
+                x.EndsAt,
                 x.Status,
                 x.Notes,
-                Doctor = x.Doctor == null ? null : new { x.Doctor.Name, x.Doctor.LastName, x.Doctor.Specialty },
+                Doctor = x.Doctor == null ? null : new { x.Doctor.FirstName, x.Doctor.LastName, Specialty = x.Doctor.Specialty!.Name },
                 Service = x.Service == null ? null : new { x.Service.Name },
             })
             .ToListAsync();
@@ -60,22 +64,24 @@ public class AppointmentsController : ControllerBase
         return Ok(appointments);
     }
 
+    // Occupied time ranges for a doctor around a calendar day. The window is wide enough to cover any client
+    // timezone; the client converts to local time and blocks every slot that overlaps a range.
     [HttpGet("availability")]
     [AllowAnonymous]
-    public async Task<IActionResult> GetAvailability([FromQuery] Guid doctorId, [FromQuery] DateOnly date)
+    public async Task<ActionResult<AvailabilityResponse>> GetAvailability([FromQuery] Guid doctorId, [FromQuery] DateOnly date)
     {
         if (!await _context.Doctors.AnyAsync(x => x.Id == doctorId && x.IsActive)) return NotFound(new { message = "Doctor not found." });
 
-        // Query a window wide enough to cover any client timezone offset either side of the given calendar day,
-        // then let the client filter/format in its own local time.
-        var dayStart = date.ToDateTime(TimeOnly.MinValue).AddDays(-1);
-        var dayEnd = date.ToDateTime(TimeOnly.MinValue).AddDays(2);
-        var bookedTimes = await _context.Appointments
-            .Where(x => x.DoctorId == doctorId && x.AppointmentDate >= dayStart && x.AppointmentDate < dayEnd && x.Status != AppointmentStatuses.Cancelled && x.Status != AppointmentStatuses.NoShow)
-            .Select(x => x.AppointmentDate)
+        var windowStart = DateTime.SpecifyKind(date.ToDateTime(TimeOnly.MinValue).AddDays(-1), DateTimeKind.Utc);
+        var windowEnd = windowStart.AddDays(3);
+        var booked = await _context.Appointments
+            .Where(x => x.DoctorId == doctorId && x.AppointmentDate < windowEnd && x.EndsAt > windowStart
+                && x.Status != AppointmentStatus.Cancelled && x.Status != AppointmentStatus.NoShow)
+            .OrderBy(x => x.AppointmentDate)
+            .Select(x => new TimeRange(x.AppointmentDate, x.EndsAt))
             .ToListAsync();
 
-        return Ok(new { bookedSlots = bookedTimes.Select(t => DateTime.SpecifyKind(t, DateTimeKind.Utc).ToString("O")) });
+        return Ok(new AvailabilityResponse(booked, booked.Select(x => x.Start).ToList()));
     }
 
     [HttpGet("{id:guid}")]
@@ -104,18 +110,34 @@ public class AppointmentsController : ControllerBase
     [AllowAnonymous]
     public async Task<IActionResult> Create([FromBody] AppointmentRequest request)
     {
-        if (request.AppointmentDate <= DateTime.UtcNow) return BadRequest(new { message = "The appointment must be scheduled in the future." });
-        if (!IsValidStatus(request.Status)) return BadRequest(new { message = "Invalid appointment status." });
-        if (!await _context.Patients.AnyAsync(x => x.Id == request.PatientId && x.IsActive) || !await _context.Doctors.AnyAsync(x => x.Id == request.DoctorId && x.IsActive)) return BadRequest(new { message = "The patient or doctor is not available." });
-        if (request.ServiceId is not null && !await _context.Services.AnyAsync(x => x.Id == request.ServiceId && x.IsActive)) return BadRequest(new { message = "The service is not available." });
-        // Cancelled/no-show appointments free up the slot, so they're excluded from the conflict check.
-        var conflict = await _context.Appointments.AnyAsync(x => x.DoctorId == request.DoctorId && x.AppointmentDate == request.AppointmentDate && x.Status != AppointmentStatuses.Cancelled && x.Status != AppointmentStatuses.NoShow);
-        if (conflict) return Conflict(new { message = "The doctor already has an appointment at that time." });
-        var appointment = new Appointment { Id = Guid.NewGuid(), PatientId = request.PatientId, DoctorId = request.DoctorId, ServiceId = request.ServiceId, AppointmentDate = request.AppointmentDate.ToUniversalTime(), Status = request.Status, Notes = request.Notes?.Trim() ?? "", CreatedAt = DateTime.UtcNow };
+        var start = request.AppointmentDate.ToUtc();
+        if (start <= DateTime.UtcNow) return BadRequest(new { message = "The appointment must be scheduled in the future." });
+
+        // Loaded (tracked) before the overlap queries: if another booking commits after this read, its stamp
+        // change makes this SaveChanges fail instead of saving an overlap.
+        var patient = await _context.Patients.FirstOrDefaultAsync(x => x.Id == request.PatientId && x.IsActive);
+        var doctor = await _context.Doctors.FirstOrDefaultAsync(x => x.Id == request.DoctorId && x.IsActive);
+        if (patient is null || doctor is null) return BadRequest(new { message = "The patient or doctor is not available." });
+        DentalService? service = null;
+        if (request.ServiceId is not null)
+        {
+            service = await _context.Services.AsNoTracking().FirstOrDefaultAsync(x => x.Id == request.ServiceId && x.IsActive);
+            if (service is null) return BadRequest(new { message = "The service is not available." });
+        }
+
+        var end = start.AddMinutes(service?.DurationMinutes ?? Appointment.DefaultDurationMinutes);
+        if (request.Status.OccupiesTime())
+        {
+            if (await OverlapsAsync(doctor.Id, start, end, exceptId: null)) return Conflict(new { message = DoctorBusyMessage });
+            if (await PatientBusyAsync(patient.Id, start, end, exceptId: null)) return Conflict(new { message = PatientBusyMessage });
+            ReserveSchedule(doctor, patient);
+        }
+
+        var appointment = new Appointment { Id = Guid.NewGuid(), PatientId = patient.Id, DoctorId = doctor.Id, ServiceId = service?.Id, AppointmentDate = start, EndsAt = end, Status = request.Status, Notes = request.Notes?.Trim() ?? "" };
         await _appointmentRepository.AddAsync(appointment);
-        var patient = await _context.Patients.AsNoTracking().SingleAsync(x => x.Id == appointment.PatientId);
-        var doctor = await _context.Doctors.AsNoTracking().SingleAsync(x => x.Id == appointment.DoctorId);
-        var html = EmailTemplates.AppointmentConfirmation($"{patient.FirstName} {patient.LastName}", $"{doctor.Name} {doctor.LastName}", appointment.AppointmentDate.ToLocalTime().ToString("f"), appointment.Notes);
+        await _appointmentRepository.SaveChangesAsync();
+
+        var html = EmailTemplates.AppointmentConfirmation(patient.FullName, doctor.FullName, appointment.AppointmentDate.ToLocalTime().ToString("f"), appointment.Notes);
         await _emailSender.SendAsync(patient.Email, "Appointment confirmed", html, isHtml: true);
 
         return CreatedAtAction(nameof(GetById), new { id = appointment.Id }, appointment);
@@ -131,11 +153,43 @@ public class AppointmentsController : ControllerBase
             return NotFound();
         }
 
-        if (!IsValidStatus(request.Status)) return BadRequest(new { message = "Invalid appointment status." });
-        var conflict = await _context.Appointments.AnyAsync(x => x.Id != id && x.DoctorId == request.DoctorId && x.AppointmentDate == request.AppointmentDate && x.Status != AppointmentStatuses.Cancelled && x.Status != AppointmentStatuses.NoShow);
-        if (conflict) return Conflict(new { message = "The doctor already has an appointment at that time." });
-        existing.PatientId = request.PatientId; existing.DoctorId = request.DoctorId; existing.ServiceId = request.ServiceId; existing.AppointmentDate = request.AppointmentDate.ToUniversalTime(); existing.Status = request.Status; existing.Notes = request.Notes?.Trim() ?? ""; existing.UpdatedAt = DateTime.UtcNow;
-        await _appointmentRepository.UpdateAsync(existing);
+        var start = request.AppointmentDate.ToUtc();
+        var patientChanged = request.PatientId != existing.PatientId;
+        var doctorChanged = request.DoctorId != existing.DoctorId;
+        var serviceChanged = request.ServiceId != existing.ServiceId;
+
+        // Only a new patient, doctor or service must be active. Editing an appointment whose doctor was later
+        // deactivated (for example to cancel it) still works.
+        var patient = await _context.Patients.FirstOrDefaultAsync(x => x.Id == request.PatientId && (x.IsActive || !patientChanged));
+        var doctor = await _context.Doctors.FirstOrDefaultAsync(x => x.Id == request.DoctorId && (x.IsActive || !doctorChanged));
+        if (patient is null || doctor is null) return BadRequest(new { message = "The patient or doctor is not available." });
+
+        // The appointment keeps its own duration unless the service changes, so editing a service's duration
+        // never changes appointments that are already booked.
+        var duration = existing.EndsAt - existing.AppointmentDate;
+        if (serviceChanged)
+        {
+            DentalService? service = null;
+            if (request.ServiceId is not null)
+            {
+                service = await _context.Services.AsNoTracking().FirstOrDefaultAsync(x => x.Id == request.ServiceId && x.IsActive);
+                if (service is null) return BadRequest(new { message = "The service is not available." });
+            }
+            duration = TimeSpan.FromMinutes(service?.DurationMinutes ?? Appointment.DefaultDurationMinutes);
+        }
+        var end = start + duration;
+
+        var takesNewTime = start != existing.AppointmentDate || end != existing.EndsAt || patientChanged || doctorChanged || !existing.Status.OccupiesTime();
+        if (request.Status.OccupiesTime() && takesNewTime)
+        {
+            if (await OverlapsAsync(doctor.Id, start, end, exceptId: id)) return Conflict(new { message = DoctorBusyMessage });
+            if (await PatientBusyAsync(patient.Id, start, end, exceptId: id)) return Conflict(new { message = PatientBusyMessage });
+            ReserveSchedule(doctor, patient);
+        }
+
+        existing.PatientId = patient.Id; existing.DoctorId = doctor.Id; existing.ServiceId = request.ServiceId;
+        existing.AppointmentDate = start; existing.EndsAt = end; existing.Status = request.Status; existing.Notes = request.Notes?.Trim() ?? "";
+        await _appointmentRepository.SaveChangesAsync();
 
         return NoContent();
     }
@@ -150,9 +204,29 @@ public class AppointmentsController : ControllerBase
             return NotFound();
         }
 
-        await _appointmentRepository.DeleteAsync(id);
+        await _appointmentRepository.DeleteAsync(existing);
         return NoContent();
     }
 
-    private static bool IsValidStatus(string status) => AppointmentStatuses.All.Contains(status);
+    // Two active appointments of the same doctor may not overlap. Back-to-back is fine: one ending at 10:00
+    // and another starting at 10:00 don't overlap. Cancelled and no-show appointments free their time.
+    internal Task<bool> OverlapsAsync(Guid doctorId, DateTime start, DateTime end, Guid? exceptId) =>
+        _context.Appointments.AnyAsync(x => x.DoctorId == doctorId && x.Id != exceptId
+            && x.Status != AppointmentStatus.Cancelled && x.Status != AppointmentStatus.NoShow
+            && x.AppointmentDate < end && x.EndsAt > start);
+
+    // Same rule for the patient, across all doctors.
+    internal Task<bool> PatientBusyAsync(Guid patientId, DateTime start, DateTime end, Guid? exceptId) =>
+        _context.Appointments.AnyAsync(x => x.PatientId == patientId && x.Id != exceptId
+            && x.Status != AppointmentStatus.Cancelled && x.Status != AppointmentStatus.NoShow
+            && x.AppointmentDate < end && x.EndsAt > start);
+
+    // New concurrency stamps go out in the same SaveChanges as the booking. If another booking for the same
+    // doctor or patient saved first, the stamp no longer matches and EF throws DbUpdateConcurrencyException
+    // (409 via DbUpdateExceptionHandler), so nothing is saved.
+    private static void ReserveSchedule(Doctor doctor, Patient patient)
+    {
+        doctor.ScheduleStamp = Guid.NewGuid();
+        patient.ScheduleStamp = Guid.NewGuid();
+    }
 }

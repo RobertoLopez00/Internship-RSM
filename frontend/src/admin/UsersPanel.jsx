@@ -3,6 +3,8 @@ import { createUser, deactivateUser, getDoctors, getPatients, getUsers, updateUs
 import { EmptyRow, LoadingRow, Notice, useConfirm } from './shared'
 
 const ROLES = ['Admin', 'Doctor', 'Receptionist', 'Patient']
+// Only staff without a profile store a name; patients and doctors use the one on their profile.
+const STORES_NAME = ['Admin', 'Receptionist']
 const blank = { email: '', password: '', role: 'Receptionist', displayName: '', patientId: '', doctorId: '', isActive: true }
 
 const inputCls = "px-4 py-3 border border-sky-500/30 rounded-xl text-base font-sans focus:outline-none focus:border-sky-500 focus:bg-sky-500/5 focus:shadow-[0_0_0_3px_rgba(14,165,233,0.1)]"
@@ -38,7 +40,7 @@ export default function UsersPanel() {
     setSaving(true); setFormError('')
     // Only one of patientId/doctorId is ever relevant for a given role — force the other to null
     // so switching a user's role in the form can't leave a stale link to the wrong entity.
-    const payload = { ...form, patientId: form.role === 'Patient' ? form.patientId || null : null, doctorId: form.role === 'Doctor' ? form.doctorId || null : null }
+    const payload = { ...form, displayName: STORES_NAME.includes(form.role) ? form.displayName : null, patientId: form.role === 'Patient' ? form.patientId || null : null, doctorId: form.role === 'Doctor' ? form.doctorId || null : null }
     try {
       if (form.id) await updateUser(form.id, payload)
       else await createUser(payload)
@@ -64,7 +66,7 @@ export default function UsersPanel() {
         {!loading && users.map((u) => <tr key={u.id} className="hover:bg-[#f9fbfd]">
           <td className={tdCls}>{u.displayName}</td><td className={tdCls}>{u.email}</td><td className={tdCls}>{u.role}</td><td className={tdCls}>{u.isActive ? 'Active' : 'Inactive'}</td>
           <td className={`${tdCls} flex gap-2 justify-end flex-wrap`}>
-            <button className={iconBtnCls} onClick={() => setForm({ id: u.id, email: u.email, password: '', role: u.role, displayName: u.displayName, patientId: u.patientId || '', doctorId: u.doctorId || '', isActive: u.isActive })}>Edit</button>
+            <button className={iconBtnCls} onClick={() => setForm({ id: u.id, email: u.email, password: '', role: u.role, displayName: STORES_NAME.includes(u.role) ? u.displayName : '', patientId: u.patientId || '', doctorId: u.doctorId || '', isActive: u.isActive })}>Edit</button>
             {u.isActive && <button className={iconBtnDangerCls} onClick={() => deactivate(u)}>Deactivate</button>}
           </td>
         </tr>)}
@@ -75,12 +77,12 @@ export default function UsersPanel() {
       <div className="flex items-center justify-between px-7 pt-7 mb-5"><h2 className="m-0 text-2xl text-[#12314a]">{form.id ? 'Edit user' : 'New user'}</h2><button className="bg-none border-0 text-[#5d7388] cursor-pointer p-0 w-10 h-10 flex items-center justify-center hover:text-[#12314a] text-2xl" onClick={() => setForm(null)} aria-label="Close">×</button></div>
       {formError && <div className="text-red-700 text-sm mt-1 px-7">{formError}</div>}
       <form className="px-7 pb-7 flex flex-col gap-4" onSubmit={save}>
-        <input className={inputCls} placeholder="Full name" value={form.displayName} onChange={(e) => setForm({ ...form, displayName: e.target.value })} required />
+        {STORES_NAME.includes(form.role) && <input className={inputCls} placeholder="Full name" value={form.displayName} onChange={(e) => setForm({ ...form, displayName: e.target.value })} required />}
         <input className={inputCls} type="email" placeholder="Email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} required disabled={!!form.id} />
         {!form.id && <input className={inputCls} type="password" placeholder="Password (min. 8 characters)" minLength={8} value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} required />}
         <select className={inputCls} value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value })}>{ROLES.map((r) => <option key={r} value={r}>{r}</option>)}</select>
-        {form.role === 'Patient' && <select className={inputCls} value={form.patientId} onChange={(e) => setForm({ ...form, patientId: e.target.value })} required><option value="">Link to patient</option>{patients.map((p) => <option key={p.id} value={p.id}>{p.firstName} {p.lastName}</option>)}</select>}
-        {form.role === 'Doctor' && <select className={inputCls} value={form.doctorId} onChange={(e) => setForm({ ...form, doctorId: e.target.value })} required><option value="">Link to doctor</option>{doctors.map((d) => <option key={d.id} value={d.id}>Dr. {d.name} {d.lastName}</option>)}</select>}
+        {form.role === 'Patient' && <select className={inputCls} value={form.patientId} onChange={(e) => setForm({ ...form, patientId: e.target.value })} required><option value="">Link to patient</option>{patients.map((p) => <option key={p.id} value={p.id}>{p.firstName} {p.lastName}{p.isActive ? '' : ' (inactive)'}</option>)}</select>}
+        {form.role === 'Doctor' && <select className={inputCls} value={form.doctorId} onChange={(e) => setForm({ ...form, doctorId: e.target.value })} required><option value="">Link to doctor</option>{doctors.map((d) => <option key={d.id} value={d.id}>Dr. {d.firstName} {d.lastName}{d.isActive ? '' : ' (inactive)'}</option>)}</select>}
         {form.id && <label className="flex items-center gap-2"><input type="checkbox" checked={form.isActive} onChange={(e) => setForm({ ...form, isActive: e.target.checked })} /> Active</label>}
         <button className={ctaCls} disabled={saving}>{saving ? 'Saving…' : 'Save'}</button>
       </form>

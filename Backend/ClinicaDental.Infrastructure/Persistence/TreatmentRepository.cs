@@ -4,45 +4,20 @@ using Microsoft.EntityFrameworkCore;
 
 namespace ClinicaDental.Infrastructure.Persistence;
 
-public class TreatmentRepository : ITreatmentRepository
+public class TreatmentRepository(AppDbContext context) : ITreatmentRepository
 {
-    private readonly AppDbContext _context;
+    public Task<List<Treatment>> GetAllAsync() =>
+        context.Treatments.AsNoTracking().Include(x => x.Payments).Include(x => x.Patient).Include(x => x.Doctor).OrderByDescending(x => x.StartDate).ToListAsync();
 
-    public TreatmentRepository(AppDbContext context)
-    {
-        _context = context;
-    }
+    // Tracked because callers edit the result.
+    public async Task<Treatment?> GetByIdAsync(Guid id) => await context.Treatments.FindAsync(id);
 
-    public async Task<List<Treatment>> GetAllAsync()
-    {
-        return await _context.Treatments.AsNoTracking().Include(x => x.Payments).Include(x => x.Patient).Include(x => x.Doctor).OrderByDescending(x => x.StartDate).ToListAsync();
-    }
+    public Task<Treatment?> GetByIdWithPaymentsAsync(Guid id) =>
+        context.Treatments.Include(x => x.Payments).SingleOrDefaultAsync(x => x.Id == id);
 
-    // Tracked (no AsNoTracking) because callers use this for updates and expect EF to detect changes.
-    public async Task<Treatment?> GetByIdAsync(Guid id)
-    {
-        return await _context.Treatments.FindAsync(id);
-    }
+    public async Task AddAsync(Treatment treatment) => await context.Treatments.AddAsync(treatment);
 
-    public async Task<Treatment?> GetByIdWithPaymentsAsync(Guid id)
-    {
-        return await _context.Treatments.Include(x => x.Payments).SingleOrDefaultAsync(x => x.Id == id);
-    }
+    public async Task AddPaymentAsync(Payment payment) => await context.Payments.AddAsync(payment);
 
-    public async Task AddAsync(Treatment treatment)
-    {
-        await _context.Treatments.AddAsync(treatment);
-        await _context.SaveChangesAsync();
-    }
-
-    public async Task AddPaymentAsync(Payment payment)
-    {
-        await _context.Payments.AddAsync(payment);
-        await _context.SaveChangesAsync();
-    }
-
-    public async Task SaveChangesAsync()
-    {
-        await _context.SaveChangesAsync();
-    }
+    public Task SaveChangesAsync() => context.SaveChangesAsync();
 }

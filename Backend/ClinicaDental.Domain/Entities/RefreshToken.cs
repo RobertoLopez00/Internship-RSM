@@ -9,6 +9,7 @@ public class RefreshToken
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime? RevokedAt { get; set; }
     // Links a rotated-out token to its successor, forming a chain that lets reuse of a revoked token be detected.
-    public string? ReplacedByTokenHash { get; set; }
+    public Guid? ReplacedByTokenId { get; set; }
+    public RefreshToken? ReplacedByToken { get; set; }
     public User? User { get; set; }
 }

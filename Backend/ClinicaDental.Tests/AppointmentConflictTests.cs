@@ -17,11 +17,11 @@ public class AppointmentConflictTests : IClassFixture<ClinicaAppFactory>
         client.WithToken(adminToken);
 
         var suffix = Guid.NewGuid().ToString("N")[..8];
-        var patientResponse = await client.PostAsJsonAsync("/api/patients", new { firstName = "Juan", lastName = "Test", email = $"juan-{suffix}@test.local", phone = "555", dateOfBirth = DateTime.UtcNow.AddYears(-30), isActive = true });
+        var patientResponse = await client.PostAsJsonAsync("/api/patients", new { firstName = "Juan", lastName = "Test", email = $"juan-{suffix}@test.local", phone = "555", dateOfBirth = "1990-01-01" });
         patientResponse.EnsureSuccessStatusCode();
         var patientId = (await patientResponse.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetGuid();
 
-        var doctorResponse = await client.PostAsJsonAsync("/api/doctors", new { name = "Carlos", lastName = "Test", specialty = "General", phone = "555", email = $"doc-{suffix}@test.local", isActive = true });
+        var doctorResponse = await client.PostAsJsonAsync("/api/doctors", new { firstName = "Carlos", lastName = "Test", specialty = "General", phone = "555", email = $"doc-{suffix}@test.local" });
         doctorResponse.EnsureSuccessStatusCode();
         var doctorId = (await doctorResponse.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetGuid();
 

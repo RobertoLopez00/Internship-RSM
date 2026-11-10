@@ -37,6 +37,9 @@ namespace ClinicaDental.API.Migrations
                     b.Property<Guid>("DoctorId")
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<DateTime>("EndsAt")
+                        .HasColumnType("datetime2");
+
                     b.Property<string>("Notes")
                         .IsRequired()
                         .HasMaxLength(500)
@@ -53,23 +56,31 @@ namespace ClinicaDental.API.Migrations
 
                     b.Property<string>("Status")
                         .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)");
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
 
                     b.Property<DateTime?>("UpdatedAt")
                         .HasColumnType("datetime2");
 
                     b.HasKey("Id");
 
-                    b.HasIndex("DoctorId");
-
-                    b.HasIndex("PatientId");
+                    b.HasIndex("AppointmentDate");
 
                     b.HasIndex("ServiceId");
 
-                    b.HasIndex("DoctorId", "AppointmentDate");
+                    b.HasIndex("DoctorId", "AppointmentDate")
+                        .IsUnique()
+                        .HasDatabaseName("UX_Appointments_Doctor_Slot")
+                        .HasFilter("[Status] <> 'Cancelled' AND [Status] <> 'NoShow'");
 
-                    b.ToTable("Appointments");
+                    b.HasIndex("PatientId", "AppointmentDate");
+
+                    b.ToTable("Appointments", t =>
+                        {
+                            t.HasCheckConstraint("CK_Appointments_EndsAt", "[EndsAt] > [AppointmentDate]");
+
+                            t.HasCheckConstraint("CK_Appointments_Status", "[Status] IN ('Pending', 'Confirmed', 'Completed', 'Cancelled', 'NoShow')");
+                        });
                 });
 
             modelBuilder.Entity("ClinicaDental.Domain.Entities.Consultation", b =>
@@ -78,14 +89,21 @@ namespace ClinicaDental.API.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<Guid?>("AppointmentId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<DateTime>("ConsultationDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
 
                     b.Property<Guid>("DentalRecordId")
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<string>("Diagnosis")
-                        .HasColumnType("nvarchar(max)");
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
 
                     b.Property<Guid>("DoctorId")
                         .HasColumnType("uniqueidentifier");
@@ -95,7 +113,14 @@ namespace ClinicaDental.API.Migrations
                         .HasMaxLength(4000)
                         .HasColumnType("nvarchar(4000)");
 
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
                     b.HasKey("Id");
+
+                    b.HasIndex("AppointmentId")
+                        .IsUnique()
+                        .HasFilter("[AppointmentId] IS NOT NULL");
 
                     b.HasIndex("DentalRecordId");
 
@@ -111,21 +136,28 @@ namespace ClinicaDental.API.Migrations
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<string>("Allergies")
-                        .HasColumnType("nvarchar(max)");
+                        .HasMaxLength(4000)
+                        .HasColumnType("nvarchar(4000)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
 
                     b.Property<string>("MedicalHistory")
-                        .HasColumnType("nvarchar(max)");
+                        .HasMaxLength(4000)
+                        .HasColumnType("nvarchar(4000)");
 
                     b.Property<string>("Medications")
-                        .HasColumnType("nvarchar(max)");
+                        .HasMaxLength(4000)
+                        .HasColumnType("nvarchar(4000)");
 
                     b.Property<string>("Observations")
-                        .HasColumnType("nvarchar(max)");
+                        .HasMaxLength(4000)
+                        .HasColumnType("nvarchar(4000)");
 
                     b.Property<Guid>("PatientId")
                         .HasColumnType("uniqueidentifier");
 
-                    b.Property<DateTime>("UpdatedAt")
+                    b.Property<DateTime?>("UpdatedAt")
                         .HasColumnType("datetime2");
 
                     b.HasKey("Id");
@@ -146,6 +178,9 @@ namespace ClinicaDental.API.Migrations
                         .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
 
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
                     b.Property<string>("Description")
                         .HasMaxLength(1000)
                         .HasColumnType("nvarchar(1000)");
@@ -161,9 +196,20 @@ namespace ClinicaDental.API.Migrations
                         .HasMaxLength(120)
                         .HasColumnType("nvarchar(120)");
 
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
                     b.HasKey("Id");
 
-                    b.ToTable("Services");
+                    b.HasIndex("Name")
+                        .IsUnique();
+
+                    b.ToTable("DentalServices", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_DentalServices_BasePrice", "[BasePrice] >= 0");
+
+                            t.HasCheckConstraint("CK_DentalServices_Duration", "[DurationMinutes] BETWEEN 5 AND 480");
+                        });
                 });
 
             modelBuilder.Entity("ClinicaDental.Domain.Entities.Doctor", b =>
@@ -173,53 +219,6 @@ namespace ClinicaDental.API.Migrations
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("Email")
-                        .IsRequired()
-                        .HasMaxLength(150)
-                        .HasColumnType("nvarchar(150)");
-
-                    b.Property<bool>("IsActive")
-                        .HasColumnType("bit");
-
-                    b.Property<string>("LastName")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
-
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
-
-                    b.Property<string>("Phone")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("Specialty")
-                        .IsRequired()
-                        .HasMaxLength(80)
-                        .HasColumnType("nvarchar(80)");
-
-                    b.Property<DateTime?>("UpdatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.HasKey("Id");
-
-                    b.ToTable("Doctors");
-                });
-
-            modelBuilder.Entity("ClinicaDental.Domain.Entities.Patient", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<DateTime>("DateOfBirth")
                         .HasColumnType("datetime2");
 
                     b.Property<string>("Email")
@@ -241,14 +240,74 @@ namespace ClinicaDental.API.Migrations
                         .HasColumnType("nvarchar(100)");
 
                     b.Property<string>("Phone")
-                        .IsRequired()
                         .HasMaxLength(30)
                         .HasColumnType("nvarchar(30)");
+
+                    b.Property<Guid>("ScheduleStamp")
+                        .IsConcurrencyToken()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("SpecialtyId")
+                        .HasColumnType("uniqueidentifier");
 
                     b.Property<DateTime?>("UpdatedAt")
                         .HasColumnType("datetime2");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("Email")
+                        .IsUnique();
+
+                    b.HasIndex("SpecialtyId");
+
+                    b.ToTable("Doctors");
+                });
+
+            modelBuilder.Entity("ClinicaDental.Domain.Entities.Patient", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateOnly?>("DateOfBirth")
+                        .HasColumnType("date");
+
+                    b.Property<string>("Email")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
+
+                    b.Property<string>("FirstName")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("LastName")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("Phone")
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)");
+
+                    b.Property<Guid>("ScheduleStamp")
+                        .IsConcurrencyToken()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Email")
+                        .IsUnique();
 
                     b.ToTable("Patients");
                 });
@@ -263,11 +322,17 @@ namespace ClinicaDental.API.Migrations
                         .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
 
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
                     b.Property<string>("Method")
-                        .HasColumnType("nvarchar(max)");
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)");
 
                     b.Property<string>("Notes")
-                        .HasColumnType("nvarchar(max)");
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
 
                     b.Property<DateTime>("PaidAt")
                         .HasColumnType("datetime2");
@@ -275,11 +340,19 @@ namespace ClinicaDental.API.Migrations
                     b.Property<Guid>("TreatmentId")
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
                     b.HasKey("Id");
 
                     b.HasIndex("TreatmentId");
 
-                    b.ToTable("Payments");
+                    b.ToTable("Payments", t =>
+                        {
+                            t.HasCheckConstraint("CK_Payments_Amount", "[Amount] > 0");
+
+                            t.HasCheckConstraint("CK_Payments_Method", "[Method] IN ('Cash', 'CreditCard', 'DebitCard', 'BankTransfer', 'Insurance', 'Other')");
+                        });
                 });
 
             modelBuilder.Entity("ClinicaDental.Domain.Entities.RefreshToken", b =>
@@ -294,8 +367,8 @@ namespace ClinicaDental.API.Migrations
                     b.Property<DateTime>("ExpiresAt")
                         .HasColumnType("datetime2");
 
-                    b.Property<string>("ReplacedByTokenHash")
-                        .HasColumnType("nvarchar(max)");
+                    b.Property<Guid?>("ReplacedByTokenId")
+                        .HasColumnType("uniqueidentifier");
 
                     b.Property<DateTime?>("RevokedAt")
                         .HasColumnType("datetime2");
@@ -310,6 +383,10 @@ namespace ClinicaDental.API.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("ExpiresAt");
+
+                    b.HasIndex("ReplacedByTokenId");
+
                     b.HasIndex("TokenHash")
                         .IsUnique();
 
@@ -318,15 +395,47 @@ namespace ClinicaDental.API.Migrations
                     b.ToTable("RefreshTokens");
                 });
 
+            modelBuilder.Entity("ClinicaDental.Domain.Entities.Specialty", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("nvarchar(80)");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Name")
+                        .IsUnique();
+
+                    b.ToTable("Specialties");
+                });
+
             modelBuilder.Entity("ClinicaDental.Domain.Entities.Treatment", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<Guid>("ConcurrencyStamp")
+                        .IsConcurrencyToken()
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<decimal>("Cost")
                         .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
 
                     b.Property<Guid>("DoctorId")
                         .HasColumnType("uniqueidentifier");
@@ -340,7 +449,8 @@ namespace ClinicaDental.API.Migrations
                         .HasColumnType("nvarchar(200)");
 
                     b.Property<string>("Observations")
-                        .HasColumnType("nvarchar(max)");
+                        .HasMaxLength(4000)
+                        .HasColumnType("nvarchar(4000)");
 
                     b.Property<Guid>("PatientId")
                         .HasColumnType("uniqueidentifier");
@@ -353,13 +463,23 @@ namespace ClinicaDental.API.Migrations
                         .HasMaxLength(30)
                         .HasColumnType("nvarchar(30)");
 
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
                     b.HasKey("Id");
 
                     b.HasIndex("DoctorId");
 
                     b.HasIndex("PatientId");
 
-                    b.ToTable("Treatments");
+                    b.ToTable("Treatments", t =>
+                        {
+                            t.HasCheckConstraint("CK_Treatments_Cost", "[Cost] >= 0");
+
+                            t.HasCheckConstraint("CK_Treatments_Dates", "[EndDate] IS NULL OR [EndDate] >= [StartDate]");
+
+                            t.HasCheckConstraint("CK_Treatments_Status", "[Status] IN ('Planned', 'InProgress', 'Completed', 'Cancelled')");
+                        });
                 });
 
             modelBuilder.Entity("ClinicaDental.Domain.Entities.User", b =>
@@ -372,7 +492,6 @@ namespace ClinicaDental.API.Migrations
                         .HasColumnType("datetime2");
 
                     b.Property<string>("DisplayName")
-                        .IsRequired()
                         .HasMaxLength(200)
                         .HasColumnType("nvarchar(200)");
 
@@ -415,7 +534,14 @@ namespace ClinicaDental.API.Migrations
                         .IsUnique()
                         .HasFilter("[PatientId] IS NOT NULL");
 
-                    b.ToTable("Users");
+                    b.ToTable("Users", t =>
+                        {
+                            t.HasCheckConstraint("CK_Users_DisplayName", "([Role] IN ('Admin', 'Receptionist') AND [DisplayName] IS NOT NULL) OR ([Role] IN ('Patient', 'Doctor') AND [DisplayName] IS NULL)");
+
+                            t.HasCheckConstraint("CK_Users_Role", "[Role] IN ('Admin', 'Doctor', 'Receptionist', 'Patient')");
+
+                            t.HasCheckConstraint("CK_Users_RoleLink", "([Role] = 'Patient' AND [PatientId] IS NOT NULL AND [DoctorId] IS NULL) OR ([Role] = 'Doctor' AND [DoctorId] IS NOT NULL AND [PatientId] IS NULL) OR ([Role] IN ('Admin', 'Receptionist') AND [PatientId] IS NULL AND [DoctorId] IS NULL)");
+                        });
                 });
 
             modelBuilder.Entity("ClinicaDental.Domain.Entities.Appointment", b =>
@@ -435,7 +561,7 @@ namespace ClinicaDental.API.Migrations
                     b.HasOne("ClinicaDental.Domain.Entities.DentalService", "Service")
                         .WithMany("Appointments")
                         .HasForeignKey("ServiceId")
-                        .OnDelete(DeleteBehavior.SetNull);
+                        .OnDelete(DeleteBehavior.Restrict);
 
                     b.Navigation("Doctor");
 
@@ -446,10 +572,15 @@ namespace ClinicaDental.API.Migrations
 
             modelBuilder.Entity("ClinicaDental.Domain.Entities.Consultation", b =>
                 {
+                    b.HasOne("ClinicaDental.Domain.Entities.Appointment", "Appointment")
+                        .WithMany()
+                        .HasForeignKey("AppointmentId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
                     b.HasOne("ClinicaDental.Domain.Entities.DentalRecord", "DentalRecord")
                         .WithMany("Consultations")
                         .HasForeignKey("DentalRecordId")
-                        .OnDelete(DeleteBehavior.Cascade)
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
                     b.HasOne("ClinicaDental.Domain.Entities.Doctor", "Doctor")
@@ -457,6 +588,8 @@ namespace ClinicaDental.API.Migrations
                         .HasForeignKey("DoctorId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+
+                    b.Navigation("Appointment");
 
                     b.Navigation("DentalRecord");
 
@@ -468,10 +601,21 @@ namespace ClinicaDental.API.Migrations
                     b.HasOne("ClinicaDental.Domain.Entities.Patient", "Patient")
                         .WithOne("DentalRecord")
                         .HasForeignKey("ClinicaDental.Domain.Entities.DentalRecord", "PatientId")
-                        .OnDelete(DeleteBehavior.Cascade)
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
                     b.Navigation("Patient");
+                });
+
+            modelBuilder.Entity("ClinicaDental.Domain.Entities.Doctor", b =>
+                {
+                    b.HasOne("ClinicaDental.Domain.Entities.Specialty", "Specialty")
+                        .WithMany("Doctors")
+                        .HasForeignKey("SpecialtyId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Specialty");
                 });
 
             modelBuilder.Entity("ClinicaDental.Domain.Entities.Payment", b =>
@@ -479,7 +623,7 @@ namespace ClinicaDental.API.Migrations
                     b.HasOne("ClinicaDental.Domain.Entities.Treatment", "Treatment")
                         .WithMany("Payments")
                         .HasForeignKey("TreatmentId")
-                        .OnDelete(DeleteBehavior.Cascade)
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
                     b.Navigation("Treatment");
@@ -487,11 +631,18 @@ namespace ClinicaDental.API.Migrations
 
             modelBuilder.Entity("ClinicaDental.Domain.Entities.RefreshToken", b =>
                 {
+                    b.HasOne("ClinicaDental.Domain.Entities.RefreshToken", "ReplacedByToken")
+                        .WithMany()
+                        .HasForeignKey("ReplacedByTokenId")
+                        .OnDelete(DeleteBehavior.NoAction);
+
                     b.HasOne("ClinicaDental.Domain.Entities.User", "User")
                         .WithMany("RefreshTokens")
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+
+                    b.Navigation("ReplacedByToken");
 
                     b.Navigation("User");
                 });
@@ -520,12 +671,12 @@ namespace ClinicaDental.API.Migrations
                     b.HasOne("ClinicaDental.Domain.Entities.Doctor", "Doctor")
                         .WithOne("User")
                         .HasForeignKey("ClinicaDental.Domain.Entities.User", "DoctorId")
-                        .OnDelete(DeleteBehavior.SetNull);
+                        .OnDelete(DeleteBehavior.Restrict);
 
                     b.HasOne("ClinicaDental.Domain.Entities.Patient", "Patient")
                         .WithOne("User")
                         .HasForeignKey("ClinicaDental.Domain.Entities.User", "PatientId")
-                        .OnDelete(DeleteBehavior.SetNull);
+                        .OnDelete(DeleteBehavior.Restrict);
 
                     b.Navigation("Doctor");
 
@@ -560,6 +711,11 @@ namespace ClinicaDental.API.Migrations
                     b.Navigation("Treatments");
 
                     b.Navigation("User");
+                });
+
+            modelBuilder.Entity("ClinicaDental.Domain.Entities.Specialty", b =>
+                {
+                    b.Navigation("Doctors");
                 });
 
             modelBuilder.Entity("ClinicaDental.Domain.Entities.Treatment", b =>

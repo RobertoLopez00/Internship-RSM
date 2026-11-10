@@ -1,9 +1,11 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { getAvailability } from './services/api'
 
 const OPEN_HOUR = 9
 const CLOSE_HOUR = 18
 const SLOT_MINUTES = 30
+// Matches Appointment.DefaultDurationMinutes in the API, used when no service is selected.
+const DEFAULT_DURATION_MINUTES = 30
 
 const SLOTS = Array.from({ length: ((CLOSE_HOUR - OPEN_HOUR) * 60) / SLOT_MINUTES }).map((_, i) => {
   const totalMinutes = OPEN_HOUR * 60 + i * SLOT_MINUTES
@@ -15,43 +17,53 @@ const SLOTS = Array.from({ length: ((CLOSE_HOUR - OPEN_HOUR) * 60) / SLOT_MINUTE
 const todayISO = () => new Date().toISOString().slice(0, 10)
 
 // Doctor + calendar-day picker backed by GET /Appointments/availability, rendered as a clickable
-// grid of 30-minute slots (open, booked, or past) instead of a bare datetime-local input.
-export default function TimeSlotPicker({ doctorId, value, onChange }) {
+// grid of 30-minute start times. A start is blocked when the appointment (durationMinutes long) would
+// overlap a booked range, run past closing time, or start in the past.
+export default function TimeSlotPicker({ doctorId, value, onChange, durationMinutes = DEFAULT_DURATION_MINUTES }) {
   const [date, setDate] = useState(value ? value.slice(0, 10) : todayISO())
-  const [bookedSlots, setBookedSlots] = useState([])
+  const [booked, setBooked] = useState([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
 
   useEffect(() => {
-    if (!doctorId || !date) { setBookedSlots([]); return }
+    if (!doctorId || !date) { setBooked([]); return }
     let cancelled = false
     setLoading(true)
     setError(null)
     getAvailability(doctorId, date)
-      .then((data) => { if (!cancelled) setBookedSlots(data.bookedSlots || []) })
+      .then((data) => {
+        if (cancelled) return
+        // Older API versions only sent start times; treat each one as a default-length appointment.
+        const ranges = data.booked || (data.bookedSlots || []).map((start) => ({ start, end: new Date(new Date(start).getTime() + DEFAULT_DURATION_MINUTES * 60000).toISOString() }))
+        setBooked(ranges.map((r) => ({ start: new Date(r.start), end: new Date(r.end) })))
+      })
       .catch(() => { if (!cancelled) setError("Couldn't load availability for this day.") })
       .finally(() => { if (!cancelled) setLoading(false) })
     return () => { cancelled = true }
   }, [doctorId, date])
 
-  const bookedLocalTimes = useMemo(() => new Set(
-    bookedSlots.map((iso) => {
-      const d = new Date(iso)
-      return d.toDateString() === new Date(`${date}T00:00:00`).toDateString()
-        ? `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
-        : null
-    }).filter(Boolean)
-  ), [bookedSlots, date])
+  const slotStart = (slot) => {
+    const d = new Date(`${date}T00:00:00`)
+    d.setHours(slot.hours, slot.minutes, 0, 0)
+    return d
+  }
+  const duration = Number(durationMinutes) || DEFAULT_DURATION_MINUTES
+
+  // Same rule as the API: [start, end) ranges overlap when each starts before the other ends,
+  // so back-to-back appointments are allowed.
+  const isBooked = (slot) => {
+    const start = slotStart(slot)
+    const end = new Date(start.getTime() + duration * 60000)
+    return booked.some((r) => r.start < end && r.end > start)
+  }
+
+  const endsAfterClosing = (slot) => slot.hours * 60 + slot.minutes + duration > CLOSE_HOUR * 60
 
   const selectedLocal = value ? new Date(value) : null
   const isSelected = (slot) => selectedLocal && selectedLocal.toDateString() === new Date(`${date}T00:00:00`).toDateString() && selectedLocal.getHours() === slot.hours && selectedLocal.getMinutes() === slot.minutes
 
   const now = new Date()
-  const isPast = (slot) => {
-    const slotDate = new Date(`${date}T00:00:00`)
-    slotDate.setHours(slot.hours, slot.minutes, 0, 0)
-    return slotDate <= now
-  }
+  const isPast = (slot) => slotStart(slot) <= now
 
   const pickSlot = (slot) => {
     const picked = new Date(`${date}T00:00:00`)
@@ -89,9 +101,7 @@ export default function TimeSlotPicker({ doctorId, value, onChange }) {
           </div>
           <div className="grid grid-cols-4 sm:grid-cols-5 gap-2 max-h-56 overflow-y-auto p-1">
             {SLOTS.map((slot) => {
-              const booked = bookedLocalTimes.has(slot.label)
-              const past = isPast(slot)
-              const disabled = booked || past
+              const disabled = isBooked(slot) || isPast(slot) || endsAfterClosing(slot)
               const selected = isSelected(slot)
               return (
                 <button
