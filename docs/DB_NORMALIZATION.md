@@ -5,28 +5,28 @@ Notas para retomar este trabajo otro día. Última actualización: 2026-11-10.
 ## Estado actual
 
 - **2026-11-10: reconstruido desde cero en esta Mac.** El código de la primera versión nunca llegó al repo: solo existía este documento. Se volvió a implementar todo lo que describe, con los mismos nombres e IDs de migración.
-- Todo está **sin commit** en la rama `stitch`. Revisa `git status` y el diff antes de continuar.
+- Commit `503971c` en la rama `stitch` (sin push).
 - Cuatro migraciones, escritas a mano a partir de lo que generó EF:
   - `20261106214814_NormalizeSchema`: la normalización inicial.
   - `20261109194723_ScheduleIntegrityAndStatusKeys`: duración de citas, concurrencia, vínculo entre consulta y cita, y estados como enum. Ver "Segunda etapa".
   - `20261109203325_AddPatientScheduleStamp`: token de concurrencia del paciente, para la regla de choques del paciente.
   - `20261109203642_UniqueServiceNames`: nombre único en el catálogo de servicios.
-  - **Ninguna está aplicada en la base real** `ClinicaDentalDb` de esta Mac (sigue en `AddAppointmentReminder`). Se revisó en modo solo lectura el 2026-11-10: 15 citas, sin estados desconocidos, sin horarios duplicados, sin emails ni nombres de servicio repetidos, sin logins huérfanos y sin citas superpuestas de doctor ni de paciente. La migración no debería detenerse.
-  - **Cuidado con la base de la otra máquina:** si allí ya se aplicó la versión anterior de `NormalizeSchema`, EF la va a saltar por tener el mismo ID, y el esquema puede no coincidir exactamente con esta versión. Lo seguro es restaurar esa base a `AddAppointmentReminder` (o desde un respaldo) antes de aplicar estas migraciones.
+- **Las cuatro están aplicadas en la base real** `ClinicaDentalDb` de esta Mac desde el 2026-11-10, con `docker compose up --build`.
+  - Respaldo previo dentro del contenedor: `/var/opt/mssql/backup/ClinicaDentalDb_before_normalization_20261110.bak`.
+  - Resultado: 3 especialidades, el pago "Credit card" pasó a `CreditCard` con el texto original en `Notes`, 8 fechas de nacimiento de relleno quedaron en null (se comparó contra el respaldo: todas eran iguales a la fecha de alta), ningún email con `+dup-`, ningún login borrado.
+- **Cuidado con la base de la otra máquina:** si allí ya se aplicó la versión anterior de `NormalizeSchema`, EF la va a saltar por tener el mismo ID, y el esquema puede no coincidir exactamente con esta versión. Lo seguro es restaurar esa base a `AddAppointmentReminder` (o desde un respaldo) antes de aplicar estas migraciones.
 - El backend compila y pasan **65 pruebas** (`dotnet test` en `Backend/ClinicaDental.Tests`). Las reglas nuevas están en `SchemaRulesTests.cs` y `ScheduleIntegrityTests.cs`.
 - El frontend compila (`npm run build`). Los 15 warnings de `npm run lint` ya existían antes de estos cambios.
-- Las cuatro migraciones se probaron en SQL Server (contenedor `clinica-dental-sql`) con una base de prueba aparte y datos viejos a propósito (estados en español, emails repetidos, logins huérfanos, fechas de relleno, tratamientos con fechas al revés, servicios repetidos). `Up`, `Down` hasta `AddAppointmentReminder` y `Up` otra vez funcionaron, y la migración se detuvo con el mensaje esperado ante un horario duplicado. La base de prueba ya se borró.
-- Prueba de humo contra SQL Server: 6 reservas simultáneas superpuestas del mismo doctor, 6 del mismo paciente con 6 doctores y 4 pagos simultáneos de 70 sobre un costo de 100. En cada caso se guardó solo una. Una base nueva con `SeedSampleData=true` también arrancó bien.
-- El contenedor `clinica-dental-app` corre el código anterior. Al reconstruirlo, las migraciones se aplican solas al arrancar (`Program.cs` llama a `Database.Migrate()`).
+- Las migraciones se probaron en SQL Server con una base de prueba aparte y datos viejos a propósito (estados en español, emails repetidos, logins huérfanos, fechas de relleno, tratamientos con fechas al revés, servicios repetidos). `Up`, `Down` hasta `AddAppointmentReminder` y `Up` otra vez funcionaron, y la migración se detuvo con el mensaje esperado ante un horario duplicado.
+- Prueba de humo contra SQL Server: 6 reservas simultáneas superpuestas del mismo doctor, 6 del mismo paciente con 6 doctores y 4 pagos simultáneos de 70 sobre un costo de 100. En cada caso se guardó solo una.
+- Flujos de la interfaz probados por HTTP (36 de 36) sobre una copia restaurada del respaldo, para no ensuciar la base real: reserva con registro, disponibilidad, portal del paciente, alta y edición de doctores y pacientes, desactivar y reactivar, cambio de estado, consulta vinculada a una cita, tratamientos y pagos, usuarios y logins del seed. La copia ya se borró. Sobre la app real solo se hicieron lecturas.
+- **No se probó en un navegador**: falta abrir http://localhost:8080 y revisar los formularios a mano.
 
 ## Próximos pasos inmediatos
 
-1. Revisar el diff y hacer commit.
-2. Reconstruir y levantar la app, que aplica las cuatro migraciones a `ClinicaDentalDb`:
-   ```
-   docker compose up --build
-   ```
-3. Probar en el navegador los flujos que cambiaron (ver "Qué se cambió" y "Segunda etapa").
+1. Revisar en el navegador (http://localhost:8080) los formularios que cambiaron: doctores (especialidad sugerida), pagos (select de método), pacientes (fecha opcional), usuarios (nombre solo para staff), citas (horarios bloqueados según la duración) y expediente (select de citas).
+2. Hacer push de `stitch` cuando esté revisado.
+3. Si todo está bien, borrar el respaldo `/var/opt/mssql/backup/ClinicaDentalDb_before_normalization_20261110.bak`.
 
 ## Qué se cambió
 
