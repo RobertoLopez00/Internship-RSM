@@ -8,7 +8,8 @@ public interface IAppointmentRepository
 {
     Task<IEnumerable<Appointment>> GetAllAsync();
     Task<Appointment?> GetByIdAsync(Guid id);
+    // Doesn't save, so the booking and the schedule stamps go out in one SaveChanges.
     Task AddAsync(Appointment appointment);
-    Task UpdateAsync(Appointment appointment);
-    Task DeleteAsync(Guid id);
+    Task DeleteAsync(Appointment appointment);
+    Task SaveChangesAsync();
 }

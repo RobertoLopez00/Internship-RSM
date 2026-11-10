@@ -94,7 +94,7 @@ export default function TeamPage({ doctors, services, currentUser, onOpenAdmin, 
                     <div className="flex flex-col sm:flex-row gap-space-lg items-start">
                       <div className="relative shrink-0 mx-auto sm:mx-0">
                         <div className="w-36 h-44 rounded-lg overflow-hidden bg-surface-container shadow-inner flex items-center justify-center">
-                          <span className="font-headline-lg text-headline-lg text-secondary font-bold">{doctor.name?.[0]}{doctor.lastName?.[0]}</span>
+                          <span className="font-headline-lg text-headline-lg text-secondary font-bold">{doctor.firstName?.[0]}{doctor.lastName?.[0]}</span>
                         </div>
                       </div>
                       <div className="flex flex-col flex-1 min-w-0 w-full">
@@ -104,7 +104,7 @@ export default function TeamPage({ doctors, services, currentUser, onOpenAdmin, 
                           </span>
                         </div>
                         <h2 className="font-headline-sm text-headline-sm text-on-surface font-bold tracking-tight mt-1">
-                          Dr. {doctor.name} {doctor.lastName}
+                          Dr. {doctor.firstName} {doctor.lastName}
                         </h2>
                         {doctor.email && (
                           <p className="font-body-sm text-body-sm text-on-surface-variant mt-space-xs flex items-center gap-1.5">

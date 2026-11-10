@@ -4,39 +4,22 @@ using Microsoft.EntityFrameworkCore;
 
 namespace ClinicaDental.Infrastructure.Persistence;
 
-public class UserRepository : IUserRepository
+public class UserRepository(AppDbContext context) : IUserRepository
 {
-    private readonly AppDbContext _context;
+    public Task<List<User>> GetAllAsync() =>
+        context.Users.AsNoTracking().Include(x => x.Patient).Include(x => x.Doctor).OrderBy(x => x.Email).ToListAsync();
 
-    public UserRepository(AppDbContext context)
-    {
-        _context = context;
-    }
+    // Tracked because callers edit the result. Includes the profile for the display name.
+    public Task<User?> GetByIdAsync(Guid id) =>
+        context.Users.Include(x => x.Patient).Include(x => x.Doctor).FirstOrDefaultAsync(x => x.Id == id);
 
-    public async Task<List<User>> GetAllAsync()
-    {
-        return await _context.Users.AsNoTracking().OrderBy(x => x.Email).ToListAsync();
-    }
+    public Task<bool> EmailExistsAsync(string email) => context.Users.AnyAsync(x => x.Email == email);
 
-    // Tracked (no AsNoTracking) because callers use this for updates and expect EF to detect changes.
-    public async Task<User?> GetByIdAsync(Guid id)
-    {
-        return await _context.Users.FindAsync(id);
-    }
+    public Task<bool> ProfileLinkedAsync(Guid? patientId, Guid? doctorId, Guid? exceptUserId = null) =>
+        context.Users.AnyAsync(x => x.Id != exceptUserId
+            && ((patientId != null && x.PatientId == patientId) || (doctorId != null && x.DoctorId == doctorId)));
 
-    public async Task<bool> EmailExistsAsync(string email)
-    {
-        return await _context.Users.AnyAsync(x => x.Email == email);
-    }
+    public async Task AddAsync(User user) => await context.Users.AddAsync(user);
 
-    public async Task AddAsync(User user)
-    {
-        await _context.Users.AddAsync(user);
-        await _context.SaveChangesAsync();
-    }
-
-    public async Task SaveChangesAsync()
-    {
-        await _context.SaveChangesAsync();
-    }
+    public Task SaveChangesAsync() => context.SaveChangesAsync();
 }

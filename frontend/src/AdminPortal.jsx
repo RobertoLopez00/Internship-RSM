@@ -72,7 +72,7 @@ export default function AdminPortal({ user, onExit, onLogout }) {
         {tab === 'Patients' && <PatientsPanel canEdit={[Roles.Admin, Roles.Receptionist].includes(user?.role)} canDelete={user?.role === Roles.Admin} />}
         {tab === 'Appointments' && <AppointmentsPanel canEdit={[Roles.Admin, Roles.Receptionist, Roles.Doctor].includes(user?.role)} canDelete={[Roles.Admin, Roles.Receptionist].includes(user?.role)} />}
         {tab === 'Doctors' && <DoctorsPanel canEdit={user?.role === Roles.Admin} />}
-        {tab === 'Services' && <ServicesPanel canEdit={[Roles.Admin, Roles.Receptionist].includes(user?.role)} />}
+        {tab === 'Services' && <ServicesPanel canEdit={[Roles.Admin, Roles.Receptionist].includes(user?.role)} canDelete={user?.role === Roles.Admin} />}
         {tab === 'Treatments' && <TreatmentsPanel canEdit={[Roles.Admin, Roles.Doctor, Roles.Receptionist].includes(user?.role)} canRegisterPayments={[Roles.Admin, Roles.Receptionist].includes(user?.role)} />}
         {tab === 'Users' && <UsersPanel />}
       </section>

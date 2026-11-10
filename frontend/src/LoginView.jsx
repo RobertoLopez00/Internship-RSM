@@ -48,7 +48,7 @@ export default function LoginView({ onSuccess, onCancel }) {
         email: reg.email.trim(),
         password: reg.password,
         phone: reg.phone.trim(),
-        dateOfBirth: new Date().toISOString(),
+        dateOfBirth: null,
       })
       onSuccess(saveSession(auth))
     } catch (e) {

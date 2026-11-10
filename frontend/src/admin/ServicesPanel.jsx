@@ -12,7 +12,7 @@ const iconBtnDangerCls = "border border-red-200 bg-white rounded-lg px-2.5 py-1.
 const thCls = "text-left text-[#60788a] font-bold text-xs uppercase tracking-wide px-3 py-2.5 border-b-2 border-[#edf2f6] whitespace-nowrap"
 const tdCls = "px-3 py-3 border-b border-[#edf2f6] align-middle"
 
-export default function ServicesPanel({ canEdit }) {
+export default function ServicesPanel({ canEdit, canDelete }) {
   const [services, setServices] = useState([])
   const [loading, setLoading] = useState(true)
   const [notice, setNotice] = useState(null)
@@ -39,8 +39,9 @@ export default function ServicesPanel({ canEdit }) {
   }
 
   const remove = (service) => ask({
-    title: 'Delete service', message: `Delete "${service.name}"?`,
-    onConfirm: async () => { try { await deleteService(service.id); setNotice({ type: 'success', text: 'Service deleted.' }); load() } catch (e) { setNotice({ type: 'error', text: e.message }) } },
+    title: 'Deactivate service', message: `Deactivate "${service.name}"? It is hidden from the public site and from new bookings, but past appointments keep it.`,
+    confirmLabel: 'Deactivate',
+    onConfirm: async () => { try { await deleteService(service.id); setNotice({ type: 'success', text: 'Service deactivated.' }); load() } catch (e) { setNotice({ type: 'error', text: e.message }) } },
   })
 
   return <section className="bg-white border border-[#e2edf4] rounded-2xl p-5.5 shadow-[0_6px_18px_rgba(23,51,74,0.04)]">
@@ -53,7 +54,7 @@ export default function ServicesPanel({ canEdit }) {
         {!loading && services.length === 0 && <EmptyRow colSpan={5} />}
         {!loading && services.map((s) => <tr key={s.id} className="hover:bg-[#f9fbfd]">
           <td className={tdCls}>{s.name}<br /><small>{s.description}</small></td><td className={tdCls}>{formatCurrency(s.basePrice)}</td><td className={tdCls}>{s.durationMinutes} min</td><td className={tdCls}>{s.isActive ? 'Active' : 'Inactive'}</td>
-          {canEdit && <td className={`${tdCls} flex gap-2 justify-end flex-wrap`}><button className={iconBtnCls} onClick={() => setForm({ ...s })}>Edit</button><button className={iconBtnDangerCls} onClick={() => remove(s)}>Delete</button></td>}
+          {canEdit && <td className={`${tdCls} flex gap-2 justify-end flex-wrap`}><button className={iconBtnCls} onClick={() => setForm({ ...s })}>Edit</button>{canDelete && s.isActive && <button className={iconBtnDangerCls} onClick={() => remove(s)}>Deactivate</button>}</td>}
         </tr>)}
       </tbody>
     </table></div>

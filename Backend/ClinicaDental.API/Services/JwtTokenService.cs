@@ -26,7 +26,7 @@ public sealed class JwtTokenService(IConfiguration configuration) : IJwtTokenSer
         var claims = new[]
         {
             new Claim(JwtRegisteredClaimNames.Sub, user.Id.ToString()), new Claim(JwtRegisteredClaimNames.Email, user.Email),
-            new Claim(ClaimTypes.NameIdentifier, user.Id.ToString()), new Claim(ClaimTypes.Name, user.DisplayName), new Claim(ClaimTypes.Role, user.Role)
+            new Claim(ClaimTypes.NameIdentifier, user.Id.ToString()), new Claim(ClaimTypes.Name, user.GetDisplayName()), new Claim(ClaimTypes.Role, user.Role)
         };
         var credentials = new SigningCredentials(new SymmetricSecurityKey(Encoding.UTF8.GetBytes(key)), SecurityAlgorithms.HmacSha256);
         // Access tokens are intentionally short-lived (default 15 min); the refresh token is what

@@ -57,7 +57,7 @@ export default function PatientPortal({ user, onExit, onLogout, onOpenReservatio
               {!loading && appointments.map((a) => (
                 <tr key={a.id} className="hover:bg-[#f9fbfd]">
                   <td className="px-4 py-3 border-b border-[#edf2f6] align-middle">{formatDateTime(a.appointmentDate)}</td>
-                  <td className="px-4 py-3 border-b border-[#edf2f6] align-middle">{a.doctor ? `Dr. ${a.doctor.name} ${a.doctor.lastName}` : '—'}</td>
+                  <td className="px-4 py-3 border-b border-[#edf2f6] align-middle">{a.doctor ? `Dr. ${a.doctor.firstName} ${a.doctor.lastName}` : '—'}</td>
                   <td className="px-4 py-3 border-b border-[#edf2f6] align-middle">{a.service?.name || '—'}</td>
                   <td className="px-4 py-3 border-b border-[#edf2f6] align-middle"><StatusBadge status={a.status} /></td>
                 </tr>

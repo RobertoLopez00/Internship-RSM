@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react'
-import { addPayment, createTreatment, getDoctors, getPatients, getTreatments, TreatmentStatuses, updateTreatment } from '../services/api'
+import { addPayment, createTreatment, getDoctors, getPatients, getTreatments, PaymentMethods, paymentMethodLabel, statusLabel, TreatmentStatuses, updateTreatment } from '../services/api'
 import { EmptyRow, formatCurrency, formatDateTime, LoadingRow, Notice, StatusBadge } from './shared'
 
 const localDate = (date = new Date()) => date.toISOString().slice(0, 10)
 const blank = { patientId: '', doctorId: '', name: '', status: 'Planned', startDate: localDate(), endDate: '', cost: 0, observations: '' }
-const blankPayment = { amount: '', paidAt: localDate(), method: '', notes: '' }
+const blankPayment = { amount: '', paidAt: localDate(), method: 'Cash', notes: '' }
 
 const inputCls = "px-4 py-3 border border-sky-500/30 rounded-xl text-base font-sans focus:outline-none focus:border-sky-500 focus:bg-sky-500/5 focus:shadow-[0_0_0_3px_rgba(14,165,233,0.1)]"
 const ctaCls = "border-0 rounded-full px-5 py-3 font-bold cursor-pointer transition-transform hover:-translate-y-px bg-gradient-to-br from-sky-500 to-teal-500 text-white shadow-[0_12px_24px_rgba(20,184,166,0.22)] disabled:opacity-70 disabled:cursor-wait"
@@ -77,7 +77,7 @@ export default function TreatmentsPanel({ canEdit, canRegisterPayments }) {
           return <tr key={t.id} className="hover:bg-[#f9fbfd]">
             <td className={tdCls}>{t.name}<br /><small>{formatDateTime(t.startDate)}</small></td>
             <td className={tdCls}>{t.patient ? `${t.patient.firstName} ${t.patient.lastName}` : '—'}</td>
-            <td className={tdCls}>{t.doctor ? `Dr. ${t.doctor.name} ${t.doctor.lastName}` : '—'}</td>
+            <td className={tdCls}>{t.doctor ? `Dr. ${t.doctor.firstName} ${t.doctor.lastName}` : '—'}</td>
             <td className={tdCls}><StatusBadge status={t.status} /></td>
             <td className={tdCls}>{formatCurrency(t.cost)}</td>
             <td className={tdCls}><span className={`font-bold ${balance > 0 ? 'text-red-700' : 'text-green-700'}`}>{formatCurrency(balance)}</span></td>
@@ -97,16 +97,16 @@ export default function TreatmentsPanel({ canEdit, canRegisterPayments }) {
       <form className="px-7 pb-7 flex flex-col gap-4" onSubmit={save}>
         <input className={inputCls} placeholder="Treatment name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required />
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <select className={inputCls} value={form.patientId} onChange={(e) => setForm({ ...form, patientId: e.target.value })} required><option value="">Patient</option>{patients.map((p) => <option key={p.id} value={p.id}>{p.firstName} {p.lastName}</option>)}</select>
-          <select className={inputCls} value={form.doctorId} onChange={(e) => setForm({ ...form, doctorId: e.target.value })} required><option value="">Doctor</option>{doctors.map((d) => <option key={d.id} value={d.id}>Dr. {d.name} {d.lastName}</option>)}</select>
+          <select className={inputCls} value={form.patientId} onChange={(e) => setForm({ ...form, patientId: e.target.value })} required><option value="">Patient</option>{patients.filter((p) => p.isActive || p.id === form.patientId).map((p) => <option key={p.id} value={p.id}>{p.firstName} {p.lastName}</option>)}</select>
+          <select className={inputCls} value={form.doctorId} onChange={(e) => setForm({ ...form, doctorId: e.target.value })} required><option value="">Doctor</option>{doctors.filter((d) => d.isActive || d.id === form.doctorId).map((d) => <option key={d.id} value={d.id}>Dr. {d.firstName} {d.lastName}</option>)}</select>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <select className={inputCls} value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })}>{TreatmentStatuses.map((s) => <option key={s}>{s}</option>)}</select>
+          <select className={inputCls} value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })}>{TreatmentStatuses.map((s) => <option key={s} value={s}>{statusLabel(s)}</option>)}</select>
           <input className={inputCls} type="number" min="0" step="0.01" placeholder="Cost" value={form.cost} onChange={(e) => setForm({ ...form, cost: e.target.value })} required />
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <label className="flex flex-col gap-1 text-sm font-semibold text-[#38566b]">Start<input className={inputCls} type="date" value={form.startDate} onChange={(e) => setForm({ ...form, startDate: e.target.value })} required /></label>
-          <label className="flex flex-col gap-1 text-sm font-semibold text-[#38566b]">End (optional)<input className={inputCls} type="date" value={form.endDate} onChange={(e) => setForm({ ...form, endDate: e.target.value })} /></label>
+          <label className="flex flex-col gap-1 text-sm font-semibold text-[#38566b]">End (optional)<input className={inputCls} type="date" min={form.startDate} value={form.endDate} onChange={(e) => setForm({ ...form, endDate: e.target.value })} /></label>
         </div>
         <textarea className={inputCls} placeholder="Observations" rows="3" value={form.observations || ''} onChange={(e) => setForm({ ...form, observations: e.target.value })} />
         <button className={ctaCls} disabled={saving}>{saving ? 'Saving…' : 'Save treatment'}</button>
@@ -122,7 +122,7 @@ export default function TreatmentsPanel({ canEdit, canRegisterPayments }) {
           <input className={inputCls} type="number" min="0.01" step="0.01" max={balanceOf(paymentTarget)} placeholder="Amount" value={paymentForm.amount} onChange={(e) => setPaymentForm({ ...paymentForm, amount: e.target.value })} required />
           <input className={inputCls} type="date" value={paymentForm.paidAt} onChange={(e) => setPaymentForm({ ...paymentForm, paidAt: e.target.value })} required />
         </div>
-        <input className={inputCls} placeholder="Payment method (optional)" value={paymentForm.method} onChange={(e) => setPaymentForm({ ...paymentForm, method: e.target.value })} />
+        <label className="flex flex-col gap-1 text-sm font-semibold text-[#38566b]">Payment method<select className={inputCls} value={paymentForm.method} onChange={(e) => setPaymentForm({ ...paymentForm, method: e.target.value })} required>{PaymentMethods.map((m) => <option key={m} value={m}>{paymentMethodLabel(m)}</option>)}</select></label>
         <textarea className={inputCls} placeholder="Notes (optional)" rows="2" value={paymentForm.notes} onChange={(e) => setPaymentForm({ ...paymentForm, notes: e.target.value })} />
         <button className={ctaCls} disabled={payingId}>{payingId ? 'Recording…' : 'Record payment'}</button>
       </form>

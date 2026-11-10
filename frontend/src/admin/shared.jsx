@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { statusLabel } from '../services/api'
 
 export function Spinner() { return <span className="inline-block w-5 h-5 border-[3px] border-slate-300 border-t-[#28749b] rounded-full animate-spin" role="status" aria-label="Loading" /> }
 
@@ -24,15 +25,14 @@ const BADGE_STYLES = {
   Pending: 'bg-yellow-100 text-yellow-800',
   Planned: 'bg-yellow-100 text-yellow-800',
   Confirmed: 'bg-blue-100 text-blue-800',
-  Inprogress: 'bg-blue-100 text-blue-800',
+  InProgress: 'bg-blue-100 text-blue-800',
   Completed: 'bg-green-100 text-green-800',
   Cancelled: 'bg-red-100 text-red-800',
-  Noshow: 'bg-red-100 text-red-800',
+  NoShow: 'bg-red-100 text-red-800',
 }
 
 export function StatusBadge({ status }) {
-  const key = status?.replace(/[\s-]/g, '')
-  return <span className={`inline-block px-2.5 py-1 rounded-full text-xs font-bold ${BADGE_STYLES[key] || 'bg-slate-100 text-slate-700'}`}>{status}</span>
+  return <span className={`inline-block px-2.5 py-1 rounded-full text-xs font-bold ${BADGE_STYLES[status] || 'bg-slate-100 text-slate-700'}`}>{statusLabel(status)}</span>
 }
 
 export function ConfirmDialog({ title, message, confirmLabel = 'Delete', busy, onConfirm, onCancel }) {

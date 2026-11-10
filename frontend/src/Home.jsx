@@ -209,9 +209,9 @@ export default function Home({ doctors, services, currentUser, onOpenAdmin, onOp
                           onClick={() => setPickerDoctorId(doctor.id)}
                           className={`text-left flex items-center gap-space-md p-space-sm rounded-lg border transition-all cursor-pointer ${pickerDoctorId === doctor.id ? 'bg-surface-container-high border-secondary' : 'bg-surface-container-lowest border-transparent hover:bg-surface-container-low'}`}
                         >
-                          <span className="w-10 h-10 rounded-full bg-secondary-fixed flex items-center justify-center text-secondary font-semibold shrink-0">{doctor.name.charAt(0)}{doctor.lastName.charAt(0)}</span>
+                          <span className="w-10 h-10 rounded-full bg-secondary-fixed flex items-center justify-center text-secondary font-semibold shrink-0">{doctor.firstName.charAt(0)}{doctor.lastName.charAt(0)}</span>
                           <span>
-                            <span className="block font-title-md text-title-md text-on-surface font-semibold">Dr. {doctor.name} {doctor.lastName}</span>
+                            <span className="block font-title-md text-title-md text-on-surface font-semibold">Dr. {doctor.firstName} {doctor.lastName}</span>
                             <span className="block font-body-sm text-body-sm text-on-surface-variant">{doctor.specialty}</span>
                           </span>
                         </button>
