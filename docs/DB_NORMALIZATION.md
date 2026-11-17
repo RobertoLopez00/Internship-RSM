@@ -5,7 +5,7 @@ Notas para retomar este trabajo otro día. Última actualización: 2026-11-10.
 ## Estado actual
 
 - **2026-11-10: reconstruido desde cero en esta Mac.** El código de la primera versión nunca llegó al repo: solo existía este documento. Se volvió a implementar todo lo que describe, con los mismos nombres e IDs de migración.
-- Commit `503971c` en la rama `stitch` (sin push).
+- Commits `503971c` y `3c7ef7f` en la rama `stitch`, ya subidos a `origin/stitch`.
 - Cuatro migraciones, escritas a mano a partir de lo que generó EF:
   - `20261106214814_NormalizeSchema`: la normalización inicial.
   - `20261109194723_ScheduleIntegrityAndStatusKeys`: duración de citas, concurrencia, vínculo entre consulta y cita, y estados como enum. Ver "Segunda etapa".
@@ -25,8 +25,7 @@ Notas para retomar este trabajo otro día. Última actualización: 2026-11-10.
 ## Próximos pasos inmediatos
 
 1. Revisar en el navegador (http://localhost:8080) los formularios que cambiaron: doctores (especialidad sugerida), pagos (select de método), pacientes (fecha opcional), usuarios (nombre solo para staff), citas (horarios bloqueados según la duración) y expediente (select de citas).
-2. Hacer push de `stitch` cuando esté revisado.
-3. Si todo está bien, borrar el respaldo `/var/opt/mssql/backup/ClinicaDentalDb_before_normalization_20261110.bak`.
+2. Si todo está bien, borrar el respaldo `/var/opt/mssql/backup/ClinicaDentalDb_before_normalization_20261110.bak`.
 
 ## Qué se cambió
 
