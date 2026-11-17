@@ -13,7 +13,7 @@ public sealed class AppointmentReminderService(IServiceScopeFactory scopes, ILog
         using var timer = new PeriodicTimer(TimeSpan.FromHours(1));
         do { await SendReminders(stoppingToken); } while (await timer.WaitForNextTickAsync(stoppingToken));
     }
-    private async Task SendReminders(CancellationToken token)
+    internal async Task SendReminders(CancellationToken token)
     {
         try
         {
@@ -29,13 +29,24 @@ public sealed class AppointmentReminderService(IServiceScopeFactory scopes, ILog
                     && (x.Status == AppointmentStatus.Pending || x.Status == AppointmentStatus.Confirmed)
                     && x.Patient!.IsActive && x.Doctor!.IsActive)
                 .ToListAsync(token);
+            var sent = 0;
             foreach (var appointment in appointments)
             {
-                var html = EmailTemplates.AppointmentReminder(appointment.Patient!.FullName, appointment.Doctor!.FullName, appointment.AppointmentDate.ToLocalTime().ToString("f"));
-                await sender.SendAsync(appointment.Patient.Email, "Appointment reminder", html, token, isHtml: true);
-                appointment.ReminderSentAt = DateTime.UtcNow;
+                // Per-appointment so one failed send doesn't abort the batch: the reminders already sent must still
+                // be marked below, or the next poll would send them again.
+                try
+                {
+                    var html = EmailTemplates.AppointmentReminder(appointment.Patient!.FullName, appointment.Doctor!.FullName, appointment.AppointmentDate.ToLocalTime().ToString("f"));
+                    await sender.SendAsync(appointment.Patient.Email, "Appointment reminder", html, token, isHtml: true);
+                    appointment.ReminderSentAt = DateTime.UtcNow;
+                    sent++;
+                }
+                catch (Exception exception) when (exception is not OperationCanceledException)
+                {
+                    logger.LogWarning(exception, "Could not send the reminder for appointment {AppointmentId}; it will be retried on the next run", appointment.Id);
+                }
             }
-            if (appointments.Count > 0) await db.SaveChangesAsync(token);
+            if (sent > 0) await db.SaveChangesAsync(token);
         }
         // Swallow exceptions so one bad send (or transient DB/SMTP issue) doesn't crash the hosted service loop.
         catch (Exception exception) { logger.LogError(exception, "Could not send appointment reminders"); }

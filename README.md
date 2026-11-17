@@ -66,6 +66,12 @@ The app is available at `http://localhost:8080` (UI and API under `/api`). Relev
 
 ### Option B — Native, backend and frontend separately (for development)
 
+**Supporting containers** — SQL Server and Mailpit only, without the `app` container (run from the repo root):
+```bash
+docker compose up -d sqlserver mailpit
+```
+Both restart automatically with Docker Desktop. If you skip Mailpit, the API still works, but every email it tries to send fails and is only logged as a warning (see [Email delivery](#email-delivery)).
+
 **Backend:**
 ```bash
 cd Backend/ClinicaDental.API
@@ -136,13 +142,25 @@ EMAIL_FROM=noreply@yourclinic.com
 ```
 For Gmail specifically, use an [app password](https://myaccount.google.com/apppasswords) rather than your account password.
 
-**Running natively** (Option B above), set the same values via user secrets:
+**Running natively** (Option B above) with Mailpit, start the container (`docker compose up -d sqlserver mailpit`) and point the API at it:
+```bash
+dotnet user-secrets set "Email:Enabled" "true"
+dotnet user-secrets set "Email:Host" "localhost"
+dotnet user-secrets set "Email:Port" "1025"
+dotnet user-secrets set "Email:UseSsl" "false"
+dotnet user-secrets set "Email:From" "noreply@dentalcare.com"
+```
+Note that `localhost` is right for `dotnet run`, while inside Docker Compose the host is `mailpit` (the service name).
+
+To use a real SMTP provider natively instead, set the same keys to its values:
 ```bash
 dotnet user-secrets set "Email:Enabled" "true"
 dotnet user-secrets set "Email:Host" "smtp.your-provider.com"
 dotnet user-secrets set "Email:Username" "..."
 dotnet user-secrets set "Email:Password" "..."
 ```
+
+If the SMTP server can't be reached when a booking is created, the appointment is still saved and the API returns `201`; the failed confirmation email is logged as a warning. A reminder that fails is logged and retried on the next hourly run while the appointment is still inside the 23–25 hour window; the other reminders in the same run are still sent and marked.
 
 ## Main endpoints
 

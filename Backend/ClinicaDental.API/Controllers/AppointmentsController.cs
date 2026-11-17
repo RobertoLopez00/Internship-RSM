@@ -20,12 +20,14 @@ public class AppointmentsController : ControllerBase
     private readonly IAppointmentRepository _appointmentRepository;
     private readonly AppDbContext _context;
     private readonly IEmailSender _emailSender;
+    private readonly ILogger<AppointmentsController> _logger;
 
-    public AppointmentsController(IAppointmentRepository appointmentRepository, AppDbContext context, IEmailSender emailSender)
+    public AppointmentsController(IAppointmentRepository appointmentRepository, AppDbContext context, IEmailSender emailSender, ILogger<AppointmentsController> logger)
     {
         _appointmentRepository = appointmentRepository;
         _context = context;
         _emailSender = emailSender;
+        _logger = logger;
     }
 
     [HttpGet]
@@ -137,8 +139,17 @@ public class AppointmentsController : ControllerBase
         await _appointmentRepository.AddAsync(appointment);
         await _appointmentRepository.SaveChangesAsync();
 
-        var html = EmailTemplates.AppointmentConfirmation(patient.FullName, doctor.FullName, appointment.AppointmentDate.ToLocalTime().ToString("f"), appointment.Notes);
-        await _emailSender.SendAsync(patient.Email, "Appointment confirmed", html, isHtml: true);
+        // The appointment is already saved, so a mail failure (SMTP down, Mailpit not running) must not turn
+        // the booking into a 500: the client would show an error and a retry would hit its own slot as a conflict.
+        try
+        {
+            var html = EmailTemplates.AppointmentConfirmation(patient.FullName, doctor.FullName, appointment.AppointmentDate.ToLocalTime().ToString("f"), appointment.Notes);
+            await _emailSender.SendAsync(patient.Email, "Appointment confirmed", html, isHtml: true);
+        }
+        catch (Exception exception)
+        {
+            _logger.LogWarning(exception, "Appointment {AppointmentId} was booked but its confirmation email could not be sent", appointment.Id);
+        }
 
         return CreatedAtAction(nameof(GetById), new { id = appointment.Id }, appointment);
     }

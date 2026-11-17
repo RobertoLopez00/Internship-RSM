@@ -2,6 +2,7 @@ services:
   sqlserver:
     image: mcr.microsoft.com/mssql/server:2022-latest
     container_name: clinica-dental-sql
+    restart: unless-stopped
     environment:
       ACCEPT_EULA: "Y"
       MSSQL_SA_PASSWORD: "YourPassword123"
@@ -19,6 +20,7 @@ services:
   mailpit:
     image: axllent/mailpit:latest
     container_name: clinica-dental-mail
+    restart: unless-stopped
     ports:
       - "8025:8025" # web UI: http://localhost:8025
       - "1025:1025" # SMTP
