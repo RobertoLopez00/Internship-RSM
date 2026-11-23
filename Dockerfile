@@ -8,7 +8,7 @@ ENV VITE_API_URL=/api
 RUN npm run build
 
 # Etapa 2: build del backend (.NET)
-FROM mcr.microsoft.com/dotnet/sdk:10.0 AS backend-build
+FROM mcr.microsoft.com/dotnet/sdk:11.0 AS backend-build
 WORKDIR /src
 COPY Backend/ClinicaDental.Domain/*.csproj Backend/ClinicaDental.Domain/
 COPY Backend/ClinicaDental.Application/*.csproj Backend/ClinicaDental.Application/
