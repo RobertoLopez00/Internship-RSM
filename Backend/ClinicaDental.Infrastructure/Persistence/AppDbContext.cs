@@ -1,3 +1,4 @@
+using ClinicaDental.Application.Interfaces;
 using ClinicaDental.Domain.Entities;
 using ClinicaDental.Infrastructure.Persistence.Conventions;
 using ClinicaDental.Infrastructure.Persistence.Interceptors;
@@ -7,11 +8,17 @@ namespace ClinicaDental.Infrastructure.Persistence;
 
 public class AppDbContext : DbContext
 {
+    private readonly ICurrentUser? _currentUser;
+
     public AppDbContext() { }
 
-    public AppDbContext(DbContextOptions<AppDbContext> options) : base(options)
+    public AppDbContext(DbContextOptions<AppDbContext> options, ICurrentUser? currentUser = null) : base(options)
     {
+        _currentUser = currentUser;
     }
+
+    // Read by AuditInterceptor to stamp ITracksAuthor rows.
+    internal Guid? CurrentUserId => _currentUser?.UserId;
 
     public DbSet<Patient> Patients => Set<Patient>();
     public DbSet<Doctor> Doctors => Set<Doctor>();

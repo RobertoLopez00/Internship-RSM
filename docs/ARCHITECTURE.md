@@ -28,7 +28,10 @@ Infrastructure ───────────┘
   (`Appointment`, `Patient`, `Doctor`, `User`, …).
 - **Application** depende únicamente de Domain. Define las *interfaces* de
   los repositorios (`IPatientRepository`, `IDoctorRepository`,
-  `IAppointmentRepository`) y un par de clases de casos de uso.
+  `IAppointmentRepository`, …), las reglas de reserva
+  (`Appointments/AppointmentScheduler`), el reloj de la clínica
+  (`Clinic/ClinicClock`: zona horaria, horario de atención) y abstracciones
+  como `ICurrentUser` y la paginación (`Common/Paging`).
 - **Infrastructure** depende de Application (para implementar sus interfaces)
   y de Domain. Contiene `AppDbContext` (EF Core) y las clases concretas de
   los repositorios (`PatientRepository`, `DoctorRepository`,
@@ -36,65 +39,64 @@ Infrastructure ───────────┘
 - **API** depende de las tres. `Program.cs` conecta todo mediante inyección
   de dependencias, y los controllers son los puntos de entrada HTTP.
 
-### Matiz importante: las capas se saltan parcialmente en la práctica
+### Criterio para usar cada capa
 
-El proyecto *sí tiene* las interfaces de repositorio de la capa Application, y
-tres controllers (`PatientsController`, `DoctorsController`,
-`AppointmentsController`) sí pasan por ellas
-(`IPatientRepository` → `PatientRepository` → `AppDbContext`).
+Se eligió una regla explícita en lugar de forzar todo por casos de uso:
 
-Pero la mayoría de los demás controllers (`ClinicalController`,
-`DashboardController`, `ServicesController`, `TreatmentsController`,
-`UsersController`, `AuthController`) inyectan `AppDbContext`
-**directamente** y lo consultan con LINQ, saltándose por completo la capa de
-repositorios/casos de uso. También existe un caso de uso,
-`GetAllPatientsUseCase`, que vive en `Application/UseCases/Patients/` pero
-nunca se registra en la inyección de dependencias ni se llama desde ningún
-lado — actualmente es código muerto.
+- **Lógica de negocio real → Application.** Las reglas de reserva (fecha
+  futura, horario de atención, disponibilidad de paciente/doctor/servicio,
+  solapamientos y tokens de concurrencia) viven en `AppointmentScheduler`,
+  que solo depende de interfaces de repositorio y de `ClinicClock`. El
+  controller de citas solo traduce HTTP ↔ `ScheduleRequest`/`ScheduleResult`
+  y envía el correo.
+- **CRUD simple y consultas de lectura → controller + repositorio o
+  `AppDbContext`.** `DashboardController`, `AuthController` y algunas
+  validaciones de existencia en `ClinicalController`, `TreatmentsController`
+  y `UsersController` consultan `AppDbContext` directamente porque no hay
+  regla que encapsular.
 
-En resumen: el *andamiaje* para una arquitectura en capas estricta existe
-(interfaces + un caso de uso), pero no se aplicó de forma consistente — solo
-un subconjunto de endpoints pasa por ella. Si vas a extender esto, conviene
-decidir de una vez si (a) hacer que todo pase por repositorios/casos de uso
-por consistencia, o (b) aceptar que los controllers hablen directo con
-`AppDbContext` para CRUD simple y reservar los casos de uso para endpoints
-con lógica de negocio real (como la verificación de conflictos de citas).
-Ambas opciones son válidas; lo importante es tener presente que el estado
-actual es mixto.
+Si un endpoint de CRUD empieza a acumular reglas (como pasó con las citas),
+la señal es moverlo a un servicio en Application con el mismo patrón.
+
+### Respuestas: siempre DTOs
+
+Los controllers nunca devuelven entidades de EF Core. Cada recurso tiene su
+DTO en `Contracts/Responses.cs` (`AppointmentResponse`, `TreatmentResponse`,
+`ServiceResponse`, `DentalRecordResponse`, …). Así no se filtran campos
+internos (tokens de concurrencia) ni datos de otras personas a través de
+propiedades de navegación, y el contrato de la API no cambia por accidente
+al tocar el modelo.
 
 ## 2. Cómo fluye una petición (ejemplo: reservar una cita)
 
-1. **Frontend** (`BookingWizard.jsx` a través de `App.jsx`) llama a
-   `createAppointment(...)` en `services/api.js`, que hace un POST con JSON a
-   `/api/appointments`.
-2. **`AppointmentsController.Create`** (`Backend/ClinicaDental.API/Controllers/AppointmentsController.cs`)
-   recibe la petición. Este endpoint es `[AllowAnonymous]` — cualquiera puede
-   reservar una cita sin haber iniciado sesión todavía, porque el flujo de
-   reserva también crea la cuenta del paciente (ver
-   `AuthController.RegisterPatient`, que el frontend llama por separado antes
-   de esto).
-3. El controller valida las reglas de negocio directamente en el método de
-   acción:
-   - la fecha de la cita debe estar en el futuro,
-   - el estado debe ser un miembro del enum `AppointmentStatus` (la API lo
-     recibe por nombre, por ejemplo `"NoShow"`; un número o una etiqueta
-     vieja responde 400 antes de llegar al controller),
-   - el paciente/doctor/servicio deben existir y estar activos,
-   - la cita dura lo que su servicio (30 minutos sin servicio) y no puede
-     superponerse con otra cita activa del mismo doctor ni del mismo
-     paciente (`OverlapsAsync` y `PatientBusyAsync`). Para que dos reservas
-     simultáneas no pasen las dos esa verificación, la reserva cambia
-     `Doctor.ScheduleStamp` y `Patient.ScheduleStamp` (tokens de
-     concurrencia) en el mismo `SaveChanges`; la segunda recibe 409.
-4. Si todo es correcto, llama a `_appointmentRepository.AddAsync(appointment)`
-   (capa Infrastructure → EF Core → SQL Server), y luego envía un correo de
-   confirmación mediante `IEmailSender`.
-5. La respuesta regresa a través del controller hacia el frontend, que
-   actualiza el estado de la interfaz.
-
-Esto muestra el patrón "mixto" en acción: la validación y orquestación viven
-en el controller (no en un caso de uso), mientras que la persistencia se
-delega al repositorio/EF Core.
+1. **Frontend**: el asistente de reservas (`BookingWizard.jsx` a través de
+   `App.jsx`) primero crea la cuenta del paciente con
+   `POST /api/auth/register-patient` (si no hay sesión) y después llama a
+   `createAppointment(...)` en `services/api.js` con esa sesión. La hora
+   elegida es hora de la clínica (`TimeSlotPicker` usa
+   `GET /api/clinic/settings`) y se convierte a UTC con `clinicTimeToIso`.
+2. **`AppointmentsController.Create`** exige sesión (`[Authorize]`) y tiene
+   límite de peticiones (`Booking`). Si quien llama es un **Patient**, el
+   paciente sale de su login, nunca del cuerpo de la petición, y el estado
+   se fuerza a `Pending`. El personal puede reservar para cualquier paciente.
+3. **`AppointmentScheduler.CreateAsync`** (capa Application) aplica las
+   reglas:
+   - la fecha debe estar en el futuro,
+   - paciente, doctor y servicio deben existir y estar activos,
+   - la cita (que dura lo que su servicio, 30 minutos sin servicio) debe
+     caer dentro del horario de atención y en un día abierto, en la zona de
+     la clínica (`ClinicClock.IsWithinOpeningHours`),
+   - no puede superponerse con otra cita activa del mismo doctor ni del
+     mismo paciente. Para que dos reservas simultáneas no pasen las dos esa
+     verificación, se cambian `Doctor.ScheduleStamp` y
+     `Patient.ScheduleStamp` (tokens de concurrencia) en el mismo
+     `SaveChanges`; la segunda recibe 409.
+4. Si todo es correcto guarda la cita y el controller envía el correo de
+   confirmación con la hora formateada en la zona de la clínica
+   (`ClinicClock.Format`). Un fallo de SMTP solo se registra como warning:
+   la cita ya está guardada y la respuesta sigue siendo 201.
+5. La respuesta es un `AppointmentResponse` con los nombres de paciente,
+   doctor y servicio, sin datos de contacto.
 
 ## 3. Autenticación y Autorización (JWT)
 
@@ -166,8 +168,9 @@ significa que no hay margen de tolerancia después de la expiración
 
 Los controllers luego declaran quién puede acceder:
 
-- `[AllowAnonymous]` — no requiere token (login, registro, consulta de
-  disponibilidad, creación inicial de cita).
+- `[AllowAnonymous]` — no requiere token (login, registro, refresh,
+  consulta de disponibilidad, ajustes de la clínica, formulario de
+  contacto). Crear una cita ya **no** es anónimo: requiere sesión.
 - `[Authorize]` — cualquier usuario autenticado, sin importar el rol.
 - `[Authorize(Roles = "Admin,Doctor,Receptionist")]` — solo estos roles
   pasan; cualquier otro (incluso con un token válido pero de rol incorrecto)
@@ -200,13 +203,24 @@ necesita renovarlos silenciosamente. `authorizedFetch`, en
 
 1. Envía la petición con el access token actual.
 2. Si la respuesta es `401 Unauthorized` (token expirado), llama a
-   `POST /api/auth/refresh` con el refresh token guardado.
+   `POST /api/auth/refresh` con el refresh token guardado. **Un solo refresh
+   a la vez**: los paneles cargan varios recursos en paralelo, y todos
+   reciben 401 juntos. Comparten la misma promesa de refresh
+   (`refreshSession`), y entre pestañas un Web Lock hace lo mismo. Si al
+   tomar el turno el refresh token guardado ya cambió, otra petición o
+   pestaña ya renovó la sesión y simplemente se reintenta con el token
+   nuevo. Sin esto, la segunda petición enviaría un token ya rotado y
+   dispararía la detección de reuso.
 3. El backend (`AuthController.Refresh`) hashea el refresh token recibido, lo
    busca, y lo rechaza si no existe, está revocado, expiró, o pertenece a un
    usuario desactivado. Si es válido, **revoca el refresh token anterior**
    (`stored.RevokedAt = ...`) y emite un par nuevo de access+refresh token —
    esto es *rotación* de refresh tokens, que limita el daño si un refresh
    token llega a ser robado (solo puede usarse una vez).
+   **Detección de reuso**: si llega un token que ya fue rotado (tiene
+   `ReplacedByTokenId`), alguien tiene una copia. No se puede saber si es el
+   usuario o un atacante, así que se revocan todas las sesiones activas de
+   ese usuario y debe iniciar sesión otra vez.
 4. El frontend guarda los tokens nuevos y reintenta la petición original una
    vez.
 5. Si el refresh mismo falla, `expireSession()` limpia el almacenamiento
@@ -246,15 +260,16 @@ solo conoce el contrato `SendAsync(recipient, subject, body, cancellationToken, 
 
 ### 4.2 Cuándo se usa
 
-Hay dos puntos donde se dispara un correo:
+Hay tres puntos donde se dispara un correo:
 
 1. **Al crear una cita** — `AppointmentsController.Create`
    (`Backend/ClinicaDental.API/Controllers/AppointmentsController.cs`) inyecta
    `IEmailSender` y, justo después de guardar la cita en la base de datos,
    arma el HTML con `EmailTemplates.AppointmentConfirmation(...)` y lo envía
    al correo del paciente con el asunto "Appointment confirmed". Esto ocurre
-   de forma síncrona dentro de la misma petición HTTP — si el envío falla, la
-   excepción se propagaría (no hay try/catch alrededor en este endpoint).
+   de forma síncrona dentro de la misma petición HTTP. Si el envío falla, se
+   registra un warning y la reserva responde 201 igual, porque la cita ya
+   está guardada.
 
 2. **Recordatorio de cita** — `AppointmentReminderService`
    (`Backend/ClinicaDental.API/Services/AppointmentReminderService.cs`) es un
@@ -277,6 +292,15 @@ Hay dos puntos donde se dispara un correo:
    registra en el log (`catch (Exception exception)`), para que un fallo
    puntual de un correo (o del SMTP) no tumbe el bucle del servicio en
    segundo plano.
+
+3. **Formulario de contacto** — `ClinicController.Contact`
+   (`POST /api/clinic/contact`, anónimo, con límite de peticiones) envía el
+   mensaje a `Clinic:ContactEmail` (o `Email:From`) con el visitante como
+   Reply-To. No guarda nada en la base de datos. Si el envío falla responde
+   503 para que el visitante sepa que debe llamar.
+
+Todas las fechas de los correos se formatean con `ClinicClock.Format`, en la
+zona horaria de la clínica, nunca en la del servidor.
 
 ### 4.3 Modo desarrollo/pruebas sin SMTP
 
@@ -302,15 +326,22 @@ necesitar credenciales SMTP reales.
 | Validación de pasos del asistente de reservas | `frontend/src/BookingWizard.jsx` |
 | Servicio de correo (SMTP) | `Backend/ClinicaDental.API/Services/EmailSender.cs` |
 | Recordatorios de cita en segundo plano | `Backend/ClinicaDental.API/Services/AppointmentReminderService.cs` |
+| Reglas de reserva | `Backend/ClinicaDental.Application/Appointments/AppointmentScheduler.cs` |
+| Zona horaria y horario de la clínica | `Backend/ClinicaDental.Application/Clinic/ClinicClock.cs` |
+| Límites de peticiones, CORS, health check | `Backend/ClinicaDental.API/Program.cs`, `Services/RateLimitPolicies.cs` |
+| Autoría de expedientes (quién creó/editó) | `Backend/ClinicaDental.Infrastructure/Persistence/Interceptors/AuditInterceptor.cs` |
+| Hora de la clínica y moneda (frontend) | `frontend/src/services/clinic.js` |
+| Rutas del frontend | `frontend/src/useRoute.js` |
 
 ## 6. Cosas pendientes / a tener en cuenta antes de extender el proyecto
 
-- **Capas inconsistentes**: ver §1 — la mayoría de los controllers se saltan
-  la capa de repositorios/casos de uso y hablan directo con `AppDbContext`.
-  Solo Patients/Doctors/Appointments pasan por repositorios.
-- **Código muerto**: `GetAllPatientsUseCase` no se usa.
-- **No existe flujo de recuperación de contraseña** actualmente — solo
-  login, registro y refresh.
-- **CORS** está fijo a `localhost:5173`/`5174` en `Program.cs`
-  (`FrontendPolicy`) — habrá que actualizarlo para cualquier despliegue que
-  no sea local.
+- **No existe flujo de recuperación ni cambio de contraseña** — solo login,
+  registro y refresh. Tampoco hay verificación del email al registrarse.
+- **Paginación en el frontend**: los paneles de citas y tratamientos ya
+  paginan. Los selectores de los formularios todavía cargan todos los
+  pacientes y doctores; con muchos registros convendría un buscador.
+- **Límites por IP detrás de un proxy**: los límites anónimos usan la IP de
+  la conexión. Detrás de un reverse proxy hay que configurar forwarded
+  headers, o todos los visitantes compartirían el mismo límite.
+- **Horarios por doctor**: el horario de atención es uno para toda la
+  clínica. No hay agenda ni días libres por doctor.

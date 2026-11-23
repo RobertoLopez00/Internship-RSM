@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import TimeSlotPicker from './TimeSlotPicker'
+import { clinicTimeToDate, formatCurrency, formatDateTime as formatClinicDateTime } from './services/clinic'
 
 const Icon = ({ name, className = '', style }) => (
   <span className={`material-symbols-outlined ${className}`} style={style}>{name}</span>
@@ -7,10 +8,11 @@ const Icon = ({ name, className = '', style }) => (
 
 const STEP_LABELS = ['Treatment', 'Specialist', 'Date and Time', 'Your Details']
 
+// form.appointmentDate is clinic wall time ("YYYY-MM-DDTHH:mm"), shown in the clinic's zone.
 const formatDateTime = (value) => {
   if (!value) return 'Select date and time'
-  const d = new Date(value)
-  return d.toLocaleDateString('en-US', { weekday: 'long', day: 'numeric', month: 'long' }) + ' • ' + d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
+  const d = clinicTimeToDate(value)
+  return formatClinicDateTime(d, { weekday: 'long', day: 'numeric', month: 'long' }) + ' • ' + formatClinicDateTime(d, { hour: '2-digit', minute: '2-digit' })
 }
 
 export default function BookingWizard({ services, doctors, form, onChange, onSubmit, isSubmitting, error, initialStep = 1, currentUser = null }) {
@@ -28,7 +30,7 @@ export default function BookingWizard({ services, doctors, form, onChange, onSub
   const stepValid = {
     1: !!form.serviceId,
     2: !!form.doctorId,
-    3: !!form.appointmentDate && new Date(form.appointmentDate) > new Date(),
+    3: !!form.appointmentDate && clinicTimeToDate(form.appointmentDate) > new Date(),
     4: currentUser
       ? true
       : form.firstName.trim().length > 0 &&
@@ -127,7 +129,7 @@ export default function BookingWizard({ services, doctors, form, onChange, onSub
                           {typeof service.basePrice === 'number' && (
                             <div className="flex items-center gap-space-xs mt-space-xs text-secondary font-label-sm text-label-sm">
                               <Icon name="payments" className="text-[16px]" />
-                              <span>{service.basePrice.toLocaleString('en-US', { style: 'currency', currency: 'EUR' })}</span>
+                              <span>{formatCurrency(service.basePrice)}</span>
                             </div>
                           )}
                         </div>

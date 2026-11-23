@@ -1,6 +1,8 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
+import { useLoader } from '../useLoader'
 import { createUser, deactivateUser, getDoctors, getPatients, getUsers, updateUser } from '../services/api'
-import { EmptyRow, LoadingRow, Notice, useConfirm } from './shared'
+import { EmptyRow, LoadingRow, Notice } from './shared'
+import { useConfirm } from './useConfirm'
 
 const ROLES = ['Admin', 'Doctor', 'Receptionist', 'Patient']
 // Only staff without a profile store a name; patients and doctors use the one on their profile.
@@ -16,24 +18,14 @@ const thCls = "text-left text-[#60788a] font-bold text-xs uppercase tracking-wid
 const tdCls = "px-3 py-3 border-b border-[#edf2f6] align-middle"
 
 export default function UsersPanel() {
-  const [users, setUsers] = useState([])
-  const [patients, setPatients] = useState([])
-  const [doctors, setDoctors] = useState([])
-  const [loading, setLoading] = useState(true)
   const [notice, setNotice] = useState(null)
   const [form, setForm] = useState(null)
   const [formError, setFormError] = useState('')
   const [saving, setSaving] = useState(false)
   const { ask, dialog } = useConfirm()
 
-  const load = async () => {
-    setLoading(true)
-    try {
-      const [u, p, d] = await Promise.all([getUsers(), getPatients(), getDoctors()])
-      setUsers(u); setPatients(p); setDoctors(d)
-    } catch { setNotice({ type: 'error', text: 'Could not load users.' }) } finally { setLoading(false) }
-  }
-  useEffect(() => { load() }, [])
+  const { data, loading, error: loadError, reload: load } = useLoader(() => Promise.all([getUsers(), getPatients(), getDoctors()]))
+  const [users, patients, doctors] = data || [[], [], []]
 
   const save = async (event) => {
     event.preventDefault()
@@ -57,7 +49,7 @@ export default function UsersPanel() {
 
   return <section className="bg-white border border-[#e2edf4] rounded-2xl p-5.5 shadow-[0_6px_18px_rgba(23,51,74,0.04)]">
     <div className="flex items-center justify-between gap-3 mb-4 flex-wrap"><h2 className="m-0">Users</h2><button className={ctaSmallCls} onClick={() => setForm({ ...blank })}>+ New user</button></div>
-    <Notice notice={notice} />
+    <Notice notice={notice || (loadError && { type: 'error', text: 'Could not load users.' })} />
     <div className="overflow-x-auto"><table className="w-full border-collapse text-sm">
       <thead><tr><th className={thCls}>Name</th><th className={thCls}>Email</th><th className={thCls}>Role</th><th className={thCls}>Status</th><th className={thCls}></th></tr></thead>
       <tbody>

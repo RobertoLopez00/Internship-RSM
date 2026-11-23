@@ -1,3 +1,4 @@
+using ClinicaDental.Application.Clinic;
 using ClinicaDental.Domain.Entities;
 using ClinicaDental.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Authorization;
@@ -7,13 +8,13 @@ using Microsoft.EntityFrameworkCore;
 namespace ClinicaDental.API.Controllers;
 
 [Authorize(Roles = $"{UserRoles.Admin},{UserRoles.Receptionist}"), ApiController, Route("api/dashboard")]
-public class DashboardController(AppDbContext context) : ControllerBase
+public class DashboardController(AppDbContext context, ClinicClock clock) : ControllerBase
 {
     [HttpGet]
     public async Task<ActionResult<object>> Get()
     {
-        var today = DateTime.SpecifyKind(DateTime.UtcNow.Date, DateTimeKind.Utc);
-        var tomorrow = today.AddDays(1);
+        // "Today" is the clinic's calendar day, not the UTC one.
+        var (today, tomorrow) = clock.TodayUtc();
         var byStatus = await context.Appointments.AsNoTracking().GroupBy(x => x.Status).Select(x => new { status = x.Key, count = x.Count() }).ToListAsync();
         // outstandingBalance is derived (billed - paid) rather than stored, so it's always consistent with ledger data.
         var paid = await context.Payments.AsNoTracking().SumAsync(x => (decimal?)x.Amount) ?? 0m;

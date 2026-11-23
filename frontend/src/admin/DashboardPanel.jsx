@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { getDashboard } from '../services/api'
-import { formatCurrency, Notice, Spinner } from './shared'
+import { Notice, Spinner } from './shared'
+import { formatCurrency } from '../services/clinic'
 import TiltCard from '../TiltCard'
 
 export default function DashboardPanel({ canViewDashboard }) {

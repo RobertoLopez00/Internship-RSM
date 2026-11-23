@@ -1,6 +1,8 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
+import { useLoader } from '../useLoader'
 import { createPatient, deletePatient, getPatients, updatePatient } from '../services/api'
-import { EmptyRow, LoadingRow, Notice, useConfirm } from './shared'
+import { EmptyRow, LoadingRow, Notice } from './shared'
+import { useConfirm } from './useConfirm'
 import DentalRecordModal from './DentalRecordModal'
 
 const blank = { firstName: '', lastName: '', email: '', phone: '', dateOfBirth: '', isActive: true }
@@ -13,19 +15,14 @@ const iconBtnDangerCls = "border border-red-200 bg-white rounded-lg px-2.5 py-1.
 
 // canDelete is the admin permission: deactivating and changing the Active flag.
 export default function PatientsPanel({ canEdit, canDelete }) {
-  const [patients, setPatients] = useState([])
-  const [loading, setLoading] = useState(true)
   const [notice, setNotice] = useState(null)
   const [form, setForm] = useState(null)
   const [saving, setSaving] = useState(false)
   const [recordPatient, setRecordPatient] = useState(null)
   const { ask, dialog } = useConfirm()
 
-  const load = async () => {
-    setLoading(true)
-    try { setPatients(await getPatients()) } catch { setNotice({ type: 'error', text: 'Could not load patients.' }) } finally { setLoading(false) }
-  }
-  useEffect(() => { load() }, [])
+  const { data, loading, error: loadError, reload: load } = useLoader(getPatients)
+  const patients = data || []
 
   const save = async (event) => {
     event.preventDefault()
@@ -48,7 +45,7 @@ export default function PatientsPanel({ canEdit, canDelete }) {
 
   return <section className="bg-white border border-[#e2edf4] rounded-2xl p-5.5 shadow-[0_6px_18px_rgba(23,51,74,0.04)]">
     <div className="flex items-center justify-between gap-3 mb-4 flex-wrap"><h2 className="m-0">Patients</h2>{canEdit && <button className={ctaSmallCls} onClick={() => setForm({ ...blank })}>+ New patient</button>}</div>
-    <Notice notice={notice} />
+    <Notice notice={notice || (loadError && { type: 'error', text: 'Could not load patients.' })} />
     <div className="overflow-x-auto"><table className="w-full border-collapse text-sm">
       <thead><tr>
         <th className="text-left text-[#60788a] font-bold text-xs uppercase tracking-wide px-3 py-2.5 border-b-2 border-[#edf2f6] whitespace-nowrap">Name</th>

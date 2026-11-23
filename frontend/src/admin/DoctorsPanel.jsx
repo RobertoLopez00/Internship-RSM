@@ -1,6 +1,8 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
+import { useLoader } from '../useLoader'
 import { createDoctor, deleteDoctor, getDoctors, getSpecialties, updateDoctor } from '../services/api'
-import { EmptyRow, LoadingRow, Notice, useConfirm } from './shared'
+import { EmptyRow, LoadingRow, Notice } from './shared'
+import { useConfirm } from './useConfirm'
 
 const blank = { firstName: '', lastName: '', specialty: '', phone: '', email: '', isActive: true }
 
@@ -13,22 +15,13 @@ const thCls = "text-left text-[#60788a] font-bold text-xs uppercase tracking-wid
 const tdCls = "px-3 py-3 border-b border-[#edf2f6] align-middle"
 
 export default function DoctorsPanel({ canEdit }) {
-  const [doctors, setDoctors] = useState([])
-  const [specialties, setSpecialties] = useState([])
-  const [loading, setLoading] = useState(true)
   const [notice, setNotice] = useState(null)
   const [form, setForm] = useState(null)
   const [saving, setSaving] = useState(false)
   const { ask, dialog } = useConfirm()
 
-  const load = async () => {
-    setLoading(true)
-    try {
-      const [d, s] = await Promise.all([getDoctors(), getSpecialties()])
-      setDoctors(d); setSpecialties(s)
-    } catch { setNotice({ type: 'error', text: 'Could not load doctors.' }) } finally { setLoading(false) }
-  }
-  useEffect(() => { load() }, [])
+  const { data, loading, error: loadError, reload: load } = useLoader(() => Promise.all([getDoctors(), getSpecialties()]))
+  const [doctors, specialties] = data || [[], []]
 
   const openNew = () => setForm({ ...blank })
   const openEdit = (doctor) => setForm({ ...doctor, phone: doctor.phone || '' })
@@ -54,7 +47,7 @@ export default function DoctorsPanel({ canEdit }) {
 
   return <section className="bg-white border border-[#e2edf4] rounded-2xl p-5.5 shadow-[0_6px_18px_rgba(23,51,74,0.04)]">
     <div className="flex items-center justify-between gap-3 mb-4 flex-wrap"><h2 className="m-0">Specialists</h2>{canEdit && <button className={ctaSmallCls} onClick={openNew}>+ New doctor</button>}</div>
-    <Notice notice={notice} />
+    <Notice notice={notice || (loadError && { type: 'error', text: 'Could not load doctors.' })} />
     <div className="overflow-x-auto"><table className="w-full border-collapse text-sm">
       <thead><tr><th className={thCls}>Name</th><th className={thCls}>Specialty</th><th className={thCls}>Contact</th><th className={thCls}>Status</th>{canEdit && <th className={thCls}></th>}</tr></thead>
       <tbody>

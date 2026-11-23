@@ -2,7 +2,7 @@ using ClinicaDental.Domain.Common;
 
 namespace ClinicaDental.Domain.Entities;
 
-public class DentalRecord : IAuditable
+public class DentalRecord : IAuditable, ITracksAuthor
 {
     public Guid Id { get; set; }
     public Guid PatientId { get; set; }
@@ -12,11 +12,13 @@ public class DentalRecord : IAuditable
     public string? Observations { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime? UpdatedAt { get; set; }
+    public Guid? CreatedByUserId { get; set; }
+    public Guid? UpdatedByUserId { get; set; }
     public Patient? Patient { get; set; }
     public ICollection<Consultation> Consultations { get; set; } = new List<Consultation>();
 }
 
-public class Consultation : IAuditable
+public class Consultation : IAuditable, ITracksAuthor
 {
     public Guid Id { get; set; }
     public Guid DentalRecordId { get; set; }
@@ -28,6 +30,8 @@ public class Consultation : IAuditable
     public Guid? AppointmentId { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime? UpdatedAt { get; set; }
+    public Guid? CreatedByUserId { get; set; }
+    public Guid? UpdatedByUserId { get; set; }
     public DentalRecord? DentalRecord { get; set; }
     public Appointment? Appointment { get; set; }
     public Doctor? Doctor { get; set; }

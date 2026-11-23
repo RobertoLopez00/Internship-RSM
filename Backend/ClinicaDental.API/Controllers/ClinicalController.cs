@@ -13,20 +13,22 @@ namespace ClinicaDental.API.Controllers;
 [Authorize, ApiController, Route("api/patients/{patientId:guid}/record")]
 public class ClinicalController(IDentalRecordRepository records, AppDbContext context) : ControllerBase
 {
-    [HttpGet] public async Task<ActionResult<object>> Get(Guid patientId)
+    [HttpGet] public async Task<ActionResult<DentalRecordResponse>> Get(Guid patientId)
     {
         if (!await CanAccess(patientId)) return Forbid();
-        var record = await records.GetWithConsultationsAsync(patientId);
-        return record is null ? NotFound() : Ok(record);
+        var response = await LoadResponseAsync(patientId);
+        return response is null ? NotFound() : Ok(response);
     }
 
+    // Returns the whole record, consultations included, so the client can replace what it shows.
     [Authorize(Roles = $"{UserRoles.Admin},{UserRoles.Doctor}"), HttpPut]
-    public async Task<ActionResult<DentalRecord>> Upsert(Guid patientId, DentalRecordRequest request)
+    public async Task<ActionResult<DentalRecordResponse>> Upsert(Guid patientId, DentalRecordRequest request)
     {
         var record = await GetOrCreateRecordAsync(patientId);
         if (record is null) return NotFound();
         record.MedicalHistory = request.MedicalHistory?.Trim(); record.Allergies = request.Allergies?.Trim(); record.Medications = request.Medications?.Trim(); record.Observations = request.Observations?.Trim();
-        await records.SaveChangesAsync(); return Ok(record);
+        await records.SaveChangesAsync();
+        return Ok(await LoadResponseAsync(patientId));
     }
 
     // The first consultation creates the dental record if the patient doesn't have one yet.
@@ -46,7 +48,25 @@ public class ClinicalController(IDentalRecordRepository records, AppDbContext co
         if (record is null) return NotFound();
         var consultation = new Consultation { Id = Guid.NewGuid(), DentalRecordId = record.Id, DoctorId = request.DoctorId, AppointmentId = request.AppointmentId, ConsultationDate = request.ConsultationDate.ToUtc(), Notes = request.Notes.Trim(), Diagnosis = request.Diagnosis?.Trim() };
         await records.AddConsultationAsync(consultation);
-        return Ok(ConsultationResponse.From(consultation));
+        consultation.Doctor = await context.Doctors.AsNoTracking().FirstOrDefaultAsync(x => x.Id == consultation.DoctorId);
+        return Ok(ConsultationResponse.From(consultation, await AuthorNamesAsync([consultation.CreatedByUserId])));
+    }
+
+    private async Task<DentalRecordResponse?> LoadResponseAsync(Guid patientId)
+    {
+        var record = await records.GetWithConsultationsAsync(patientId);
+        if (record is null) return null;
+        var authorIds = record.Consultations.Select(c => c.CreatedByUserId).Append(record.CreatedByUserId).Append(record.UpdatedByUserId);
+        return DentalRecordResponse.From(record, await AuthorNamesAsync(authorIds));
+    }
+
+    // Display names of the logins that wrote clinical rows, for the "created by / updated by" trail.
+    private async Task<IReadOnlyDictionary<Guid, string>> AuthorNamesAsync(IEnumerable<Guid?> ids)
+    {
+        var wanted = ids.OfType<Guid>().Distinct().ToList();
+        if (wanted.Count == 0) return new Dictionary<Guid, string>();
+        var users = await context.Users.AsNoTracking().Include(x => x.Patient).Include(x => x.Doctor).Where(x => wanted.Contains(x.Id)).ToListAsync();
+        return users.ToDictionary(x => x.Id, x => x.GetDisplayName());
     }
 
     // Null when the patient doesn't exist. A new record is added but not saved.

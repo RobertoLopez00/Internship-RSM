@@ -1,10 +1,11 @@
+using ClinicaDental.Application.Clinic;
 using ClinicaDental.Domain.Entities;
 using ClinicaDental.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 
 namespace ClinicaDental.API.Services;
 
-public sealed class AppointmentReminderService(IServiceScopeFactory scopes, ILogger<AppointmentReminderService> logger) : BackgroundService
+public sealed class AppointmentReminderService(IServiceScopeFactory scopes, ClinicClock clock, ILogger<AppointmentReminderService> logger) : BackgroundService
 {
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
@@ -21,7 +22,7 @@ public sealed class AppointmentReminderService(IServiceScopeFactory scopes, ILog
             // created per run to get a valid (non-disposed) DbContext instance.
             using var scope = scopes.CreateScope(); var db = scope.ServiceProvider.GetRequiredService<AppDbContext>(); var sender = scope.ServiceProvider.GetRequiredService<IEmailSender>();
             // Target window is "24 hours before appointment", widened by +/-1h to accommodate the hourly poll cadence.
-            var start = DateTime.UtcNow.AddHours(23); var end = DateTime.UtcNow.AddHours(25);
+            var now = clock.UtcNow; var start = now.AddHours(23); var end = now.AddHours(25);
             // ReminderSentAt == null prevents duplicate emails across poll cycles. Only pending/confirmed appointments
             // with an active patient and doctor get reminders.
             var appointments = await db.Appointments.Include(x => x.Patient).Include(x => x.Doctor)
@@ -36,9 +37,9 @@ public sealed class AppointmentReminderService(IServiceScopeFactory scopes, ILog
                 // be marked below, or the next poll would send them again.
                 try
                 {
-                    var html = EmailTemplates.AppointmentReminder(appointment.Patient!.FullName, appointment.Doctor!.FullName, appointment.AppointmentDate.ToLocalTime().ToString("f"));
+                    var html = EmailTemplates.AppointmentReminder(appointment.Patient!.FullName, appointment.Doctor!.FullName, clock.Format(appointment.AppointmentDate));
                     await sender.SendAsync(appointment.Patient.Email, "Appointment reminder", html, token, isHtml: true);
-                    appointment.ReminderSentAt = DateTime.UtcNow;
+                    appointment.ReminderSentAt = clock.UtcNow;
                     sent++;
                 }
                 catch (Exception exception) when (exception is not OperationCanceledException)

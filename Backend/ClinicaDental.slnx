@@ -3,4 +3,5 @@
   <Project Path="ClinicaDental.Application/ClinicaDental.Application.csproj" />
   <Project Path="ClinicaDental.Domain/ClinicaDental.Domain.csproj" />
   <Project Path="ClinicaDental.Infrastructure/ClinicaDental.Infrastructure.csproj" />
+  <Project Path="ClinicaDental.Tests/ClinicaDental.Tests.csproj" />
 </Solution>

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { createAppointment, getDoctorsPublic, getServicesPublic, registerPatient } from './services/api'
+import { createAppointment, getDoctorsPublic, getServicesPublic, registerPatient, sendContactMessage } from './services/api'
 import AdminPortal from './AdminPortal'
 import PatientPortal from './PatientPortal'
 import LoginView from './LoginView'
@@ -9,18 +9,22 @@ import ServicesPage from './ServicesPage'
 import BookingWizard from './BookingWizard'
 import { useRipple } from './useRipple'
 import { clearSession, saveSession, session } from './services/auth'
+import { clinicTimeToDate, clinicTimeToIso } from './services/clinic'
+import { useRoute } from './useRoute'
 import { X } from 'lucide-react'
 
 const emptyReservation = { firstName: '', lastName: '', email: '', password: '', phone: '', appointmentDate: '', doctorId: '', serviceId: '', notes: '' }
 const emptyContact = { name: '', email: '', phone: '', message: '' }
-const localDateTime = (date = new Date()) => new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().slice(0, 16)
 
 function App() {
-  // adminView/loginView/page act as a simple hand-rolled router: this app has no react-router,
-  // so which top-level screen renders is just a few booleans/strings checked in the JSX below.
-  const [adminView, setAdminView] = useState(false)
-  const [loginView, setLoginView] = useState(false)
-  const [page, setPage] = useState('home')
+  // Each screen has its own URL: / (home), /team, /services, /login and /portal (staff panel or patient portal).
+  const [path, navigate] = useRoute()
+  const adminView = path === '/portal'
+  const loginView = path === '/login'
+  const page = path === '/team' ? 'team' : path === '/services' ? 'services' : 'home'
+  const setPage = (name) => navigate(name === 'home' ? '/' : `/${name}`)
+  const openAdmin = () => navigate(currentUser ? '/portal' : '/login')
+  const leavePortal = () => navigate('/')
   // currentUser is seeded from localStorage via session() so a page reload doesn't bounce a
   // logged-in user back to the public site before the admin check below runs.
   const [currentUser, setCurrentUser] = useState(session())
@@ -35,19 +39,21 @@ function App() {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const ripple = useRipple()
 
-  const loadData = async () => {
-    try {
-      const [doctorData, serviceData] = await Promise.all([getDoctorsPublic(), getServicesPublic()])
+  useEffect(() => {
+    let cancelled = false
+    Promise.all([getDoctorsPublic(), getServicesPublic()]).then(([doctorData, serviceData]) => {
+      if (cancelled) return
       setDoctors(doctorData.filter((doctor) => doctor.isActive !== false))
       setServices(serviceData.filter((service) => service.isActive !== false))
-    } catch { setFeedback({ type: 'error', text: "We couldn't load the information. Please reload the page." }) }
-  }
-  useEffect(() => { loadData() }, [])
+    }, () => { if (!cancelled) setFeedback({ type: 'error', text: "We couldn't load the information. Please reload the page." }) })
+    return () => { cancelled = true }
+  }, [])
 
   const closeModal = () => { setModal(null); setIsSubmitting(false) }
   const openReservation = ({ doctorId = '', serviceId = '', appointmentDate = '' } = {}) => {
     setFeedback(null)
-    setReserveForm({ ...emptyReservation, doctorId, serviceId, appointmentDate: appointmentDate || localDateTime(new Date(Date.now() + 86400000)) })
+    // appointmentDate is clinic wall time from a TimeSlotPicker, or empty until the visitor picks a slot.
+    setReserveForm({ ...emptyReservation, doctorId, serviceId, appointmentDate })
     setModal('reserve')
   }
   const reservationChange = ({ target: { name, value } }) => setReserveForm((current) => ({ ...current, [name]: value }))
@@ -58,7 +64,7 @@ function App() {
   // a login-capable account first and uses its patientId for the appointment.
   const submitReservation = async (event) => {
     event.preventDefault()
-    if (!reserveForm.appointmentDate || new Date(reserveForm.appointmentDate) <= new Date()) { setFeedback({ type: 'error', text: 'Please select an available time for your appointment.' }); return }
+    if (!reserveForm.appointmentDate || clinicTimeToDate(reserveForm.appointmentDate) <= new Date()) { setFeedback({ type: 'error', text: 'Please select an available time for your appointment.' }); return }
     setIsSubmitting(true)
     try {
       // A signed-in patient already has an account — reuse it instead of registering a new one
@@ -70,19 +76,26 @@ function App() {
         setCurrentUser(user)
         patientId = user.patientId
       }
-      await createAppointment({ patientId, doctorId: reserveForm.doctorId, serviceId: reserveForm.serviceId || null, appointmentDate: new Date(reserveForm.appointmentDate).toISOString(), status: 'Pending', notes: reserveForm.notes.trim() })
+      await createAppointment({ patientId, doctorId: reserveForm.doctorId, serviceId: reserveForm.serviceId || null, appointmentDate: clinicTimeToIso(reserveForm.appointmentDate), status: 'Pending', notes: reserveForm.notes.trim() })
       closeModal(); setFeedback({ type: 'success', text: currentUser ? 'Your appointment was booked. We’ll confirm the details by email.' : 'Your appointment was booked and we created your patient account. We’ll confirm the details by email.' })
     } catch (e) { setFeedback({ type: 'error', text: e.message || 'We could not book the appointment. Please try again.' }) } finally { setIsSubmitting(false) }
   }
-  const submitContact = (event) => {
+  // Emailed to the clinic inbox. On failure the modal stays open with the message so nothing typed is lost.
+  const submitContact = async (event) => {
     event.preventDefault()
-    setContactForm(emptyContact); closeModal(); setFeedback({ type: 'success', text: 'We received your message. Our team will get back to you soon.' })
+    setIsSubmitting(true); setFeedback(null)
+    try {
+      await sendContactMessage({ name: contactForm.name.trim(), email: contactForm.email.trim(), phone: contactForm.phone.trim() || null, message: contactForm.message.trim() })
+      setContactForm(emptyContact); closeModal(); setFeedback({ type: 'success', text: 'We received your message. Our team will get back to you soon.' })
+    } catch (e) { setFeedback({ type: 'error', text: e.message || 'We could not send your message. Please try again.' }) } finally { setIsSubmitting(false) }
   }
 
   // Early returns switch to a full-screen view (login or admin) instead of a route change —
   // whichever is true short-circuits before the public site JSX below is ever built.
-  if (loginView) return <LoginView onCancel={() => setLoginView(false)} onSuccess={(user) => { setCurrentUser(user); setLoginView(false); setAdminView(true) }} />
-  if (adminView && currentUser?.role !== 'Patient') return <AdminPortal user={currentUser} onLogout={() => { clearSession(); setCurrentUser(null); setAdminView(false) }} onExit={() => setAdminView(false)} />
+  const signOut = () => { clearSession(); setCurrentUser(null); navigate('/') }
+  // /portal without a session shows the sign-in form; signing in stays on /portal.
+  if (loginView || (adminView && !currentUser)) return <LoginView onCancel={leavePortal} onSuccess={(user) => { setCurrentUser(user); navigate('/portal', { replace: true }) }} />
+  if (adminView && currentUser?.role !== 'Patient') return <AdminPortal user={currentUser} onLogout={signOut} onExit={leavePortal} />
 
   return (
     <>
@@ -93,13 +106,13 @@ function App() {
         </div>
       )}
       {adminView && currentUser?.role === 'Patient' ? (
-        <PatientPortal user={currentUser} onLogout={() => { clearSession(); setCurrentUser(null); setAdminView(false) }} onExit={() => setAdminView(false)} onOpenReservation={openReservation} />
+        <PatientPortal user={currentUser} onLogout={signOut} onExit={leavePortal} onOpenReservation={openReservation} />
       ) : page === 'team' ? (
         <TeamPage
           doctors={doctors}
           services={services}
           currentUser={currentUser}
-          onOpenAdmin={() => currentUser ? setAdminView(true) : setLoginView(true)}
+          onOpenAdmin={openAdmin}
           onOpenReservation={openReservation}
           onNavigateHome={() => setPage('home')}
           onNavigateTeam={() => setPage('team')}
@@ -110,7 +123,7 @@ function App() {
           doctors={doctors}
           services={services}
           currentUser={currentUser}
-          onOpenAdmin={() => currentUser ? setAdminView(true) : setLoginView(true)}
+          onOpenAdmin={openAdmin}
           onOpenReservation={openReservation}
           onNavigateHome={() => setPage('home')}
           onNavigateTeam={() => setPage('team')}
@@ -121,8 +134,8 @@ function App() {
           doctors={doctors}
           services={services}
           currentUser={currentUser}
-          onOpenAdmin={() => currentUser ? setAdminView(true) : setLoginView(true)}
-          onOpenLogin={() => setLoginView(true)}
+          onOpenAdmin={openAdmin}
+          onOpenLogin={() => navigate('/login')}
           onOpenReservation={openReservation}
           onOpenContact={() => { setFeedback(null); setModal('contact') }}
           onNavigateHome={() => setPage('home')}
@@ -157,7 +170,7 @@ function App() {
                   <input className="px-4 py-3 border border-sky-500/30 rounded-xl text-base font-sans focus:outline-none focus:border-sky-500 focus:bg-sky-500/5 focus:shadow-[0_0_0_3px_rgba(14,165,233,0.1)]" type="tel" name="phone" placeholder="Phone (optional)" value={contactForm.phone} onChange={contactChange} />
                 </div>
                 <textarea className="px-4 py-3 border border-sky-500/30 rounded-xl text-base font-sans resize-y focus:outline-none focus:border-sky-500 focus:bg-sky-500/5 focus:shadow-[0_0_0_3px_rgba(14,165,233,0.1)]" name="message" placeholder="How can we help you?" value={contactForm.message} onChange={contactChange} rows="5" required />
-                <button type="submit" className="ripple-btn mt-2 border-0 rounded-full px-5 py-3 font-bold cursor-pointer transition-transform hover:-translate-y-px bg-gradient-to-br from-sky-500 to-teal-500 text-white shadow-[0_12px_24px_rgba(20,184,166,0.22)]" onMouseDown={ripple}>Send message</button>
+                <button type="submit" disabled={isSubmitting} className="ripple-btn mt-2 disabled:opacity-70 disabled:cursor-wait border-0 rounded-full px-5 py-3 font-bold cursor-pointer transition-transform hover:-translate-y-px bg-gradient-to-br from-sky-500 to-teal-500 text-white shadow-[0_12px_24px_rgba(20,184,166,0.22)]" onMouseDown={ripple}>{isSubmitting ? 'Sending…' : 'Send message'}</button>
               </form>
             )}
           </div>

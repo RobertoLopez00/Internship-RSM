@@ -29,6 +29,12 @@ public class ClinicaAppFactory : WebApplicationFactory<Program>
         builder.UseSetting("BootstrapAdmin:Password", "AdminTest123!");
         builder.UseSetting("BootstrapAdmin:DisplayName", "Test Admin");
         builder.UseSetting("SeedSampleData", "false");
+        // Open around the clock in UTC so tests can book any hour; OpeningHoursTests narrows this.
+        builder.UseSetting("Clinic:TimeZone", "UTC");
+        builder.UseSetting("Clinic:OpenHour", "0");
+        builder.UseSetting("Clinic:CloseHour", "24");
+        // Every test client shares one IP, so limits would trip across unrelated tests; RateLimitTests turns them on.
+        builder.UseSetting("RateLimiting:Enabled", "false");
 
         builder.ConfigureServices(services =>
         {

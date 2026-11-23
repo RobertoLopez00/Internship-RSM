@@ -4,7 +4,7 @@ using Microsoft.EntityFrameworkCore.Diagnostics;
 
 namespace ClinicaDental.Infrastructure.Persistence.Interceptors;
 
-// Fills IAuditable.CreatedAt on insert and UpdatedAt on a real edit. Changing only a concurrency token
+// Fills IAuditable.CreatedAt on insert and UpdatedAt on a real edit, and ITracksAuthor with the signed-in user. Changing only a concurrency token
 // (for example Doctor.ScheduleStamp when a booking reserves the doctor's time) is not an edit of the row.
 public sealed class AuditInterceptor : SaveChangesInterceptor
 {
@@ -27,6 +27,12 @@ public sealed class AuditInterceptor : SaveChangesInterceptor
         if (context is null) return;
         context.ChangeTracker.DetectChanges();
         var now = DateTime.UtcNow;
+        var userId = (context as AppDbContext)?.CurrentUserId;
+        foreach (var entry in context.ChangeTracker.Entries<ITracksAuthor>())
+        {
+            if (entry.State == EntityState.Added) entry.Entity.CreatedByUserId ??= userId;
+            else if (entry.State == EntityState.Modified && userId is not null) entry.Entity.UpdatedByUserId = userId;
+        }
         foreach (var entry in context.ChangeTracker.Entries<IAuditable>())
         {
             if (entry.State == EntityState.Added)

@@ -24,7 +24,7 @@ public static class TestHelpers
         return client;
     }
 
-    public static async Task<HttpClient> AdminClientAsync(this ClinicaAppFactory factory)
+    public static async Task<HttpClient> AdminClientAsync(this Microsoft.AspNetCore.Mvc.Testing.WebApplicationFactory<Program> factory)
     {
         var client = factory.CreateClient();
         var (token, _, _) = await LoginAsync(client, AdminEmail, AdminPassword);

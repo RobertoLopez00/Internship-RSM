@@ -12,21 +12,21 @@ public class ServicesController(IDentalServiceRepository services) : ControllerB
     private const string DuplicateNameMessage = "A service with this name already exists.";
 
     // Reads are anonymous so the public site can render the catalog. Visitors only see active services; staff see all.
-    [AllowAnonymous, HttpGet] public Task<List<DentalService>> GetAll() => services.GetAllAsync(activeOnly: !IsStaff());
+    [AllowAnonymous, HttpGet] public async Task<IEnumerable<ServiceResponse>> GetAll() => (await services.GetAllAsync(activeOnly: !IsStaff())).Select(ServiceResponse.From);
 
     [AllowAnonymous, HttpGet("{id:guid}")]
-    public async Task<ActionResult<DentalService>> Get(Guid id) =>
-        await services.GetByIdAsync(id) is { } service && (service.IsActive || IsStaff()) ? Ok(service) : NotFound();
+    public async Task<ActionResult<ServiceResponse>> Get(Guid id) =>
+        await services.GetByIdAsync(id) is { } service && (service.IsActive || IsStaff()) ? Ok(ServiceResponse.From(service)) : NotFound();
 
     [Authorize(Roles = $"{UserRoles.Admin},{UserRoles.Receptionist}"), HttpPost]
-    public async Task<ActionResult<DentalService>> Create(ServiceRequest request)
+    public async Task<ActionResult<ServiceResponse>> Create(ServiceRequest request)
     {
         if (await services.NameInUseAsync(request.Name.Trim())) return Conflict(new { message = DuplicateNameMessage });
         var service = new DentalService { Id = Guid.NewGuid() };
         Apply(service, request);
         await services.AddAsync(service);
         await services.SaveChangesAsync();
-        return CreatedAtAction(nameof(Get), new { service.Id }, service);
+        return CreatedAtAction(nameof(Get), new { service.Id }, ServiceResponse.From(service));
     }
 
     [Authorize(Roles = $"{UserRoles.Admin},{UserRoles.Receptionist}"), HttpPut("{id:guid}")]

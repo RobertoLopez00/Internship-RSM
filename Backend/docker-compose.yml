@@ -5,7 +5,7 @@ services:
     restart: unless-stopped
     environment:
       ACCEPT_EULA: "Y"
-      MSSQL_SA_PASSWORD: "YourPassword123"
+      MSSQL_SA_PASSWORD: "${SQL_SA_PASSWORD:-YourPassword123}"
     ports:
       - "1433:1433"
     volumes:

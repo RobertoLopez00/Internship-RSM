@@ -227,7 +227,7 @@ export default function Home({ doctors, services, currentUser, onOpenAdmin, onOp
                 <div className="lg:col-span-7 flex flex-col gap-space-md">
                   <div className="flex items-center justify-between">
                     <span className="font-title-md text-title-md text-on-surface font-semibold">Available slots</span>
-                    <span className="font-label-sm text-label-sm text-on-surface-variant">Local time</span>
+                    <span className="font-label-sm text-label-sm text-on-surface-variant">Clinic time</span>
                   </div>
                   <TimeSlotPicker
                     doctorId={pickerDoctorId}

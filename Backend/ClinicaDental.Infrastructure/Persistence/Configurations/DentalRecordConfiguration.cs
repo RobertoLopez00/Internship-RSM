@@ -16,6 +16,9 @@ public sealed class DentalRecordConfiguration : IEntityTypeConfiguration<DentalR
         // One dental record per patient (1:1), enforced via a unique index on the FK.
         entity.HasIndex(r => r.PatientId).IsUnique();
         entity.HasOne(r => r.Patient).WithOne(p => p.DentalRecord).HasForeignKey<DentalRecord>(r => r.PatientId).OnDelete(DeleteBehavior.Restrict);
+        // Logins are deactivated, never deleted, so the author of a clinical change can always be traced.
+        entity.HasOne<User>().WithMany().HasForeignKey(r => r.CreatedByUserId).OnDelete(DeleteBehavior.Restrict);
+        entity.HasOne<User>().WithMany().HasForeignKey(r => r.UpdatedByUserId).OnDelete(DeleteBehavior.Restrict);
     }
 }
 
@@ -31,5 +34,7 @@ public sealed class ConsultationConfiguration : IEntityTypeConfiguration<Consult
         // Deleting the appointment only clears the link; the consultation stays in the record.
         entity.HasOne(c => c.Appointment).WithMany().HasForeignKey(c => c.AppointmentId).OnDelete(DeleteBehavior.SetNull);
         entity.HasIndex(c => c.AppointmentId).IsUnique().HasFilter("[AppointmentId] IS NOT NULL");
+        entity.HasOne<User>().WithMany().HasForeignKey(c => c.CreatedByUserId).OnDelete(DeleteBehavior.Restrict);
+        entity.HasOne<User>().WithMany().HasForeignKey(c => c.UpdatedByUserId).OnDelete(DeleteBehavior.Restrict);
     }
 }

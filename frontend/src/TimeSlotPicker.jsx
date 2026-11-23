@@ -1,52 +1,54 @@
 import { useEffect, useState } from 'react'
 import { getAvailability } from './services/api'
+import { clinic, clinicTimeToDate, clinicToday, isClosedDay, weekdayOf } from './services/clinic'
 
-const OPEN_HOUR = 9
-const CLOSE_HOUR = 18
-const SLOT_MINUTES = 30
 // Matches Appointment.DefaultDurationMinutes in the API, used when no service is selected.
 const DEFAULT_DURATION_MINUTES = 30
 
-const SLOTS = Array.from({ length: ((CLOSE_HOUR - OPEN_HOUR) * 60) / SLOT_MINUTES }).map((_, i) => {
-  const totalMinutes = OPEN_HOUR * 60 + i * SLOT_MINUTES
-  const hours = Math.floor(totalMinutes / 60)
-  const minutes = totalMinutes % 60
-  return { hours, minutes, label: `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}` }
-})
+const pad = (n) => String(n).padStart(2, '0')
 
-const todayISO = () => new Date().toISOString().slice(0, 10)
+// Start times from opening to closing, every slotMinutes, in clinic time (GET /api/clinic/settings).
+function buildSlots({ openHour, closeHour, slotMinutes }) {
+  const slots = []
+  for (let minutes = openHour * 60; minutes < closeHour * 60; minutes += slotMinutes) {
+    slots.push({ minutes, label: `${pad(Math.floor(minutes / 60))}:${pad(minutes % 60)}` })
+  }
+  return slots
+}
 
-// Doctor + calendar-day picker backed by GET /Appointments/availability, rendered as a clickable
-// grid of 30-minute start times. A start is blocked when the appointment (durationMinutes long) would
-// overlap a booked range, run past closing time, or start in the past.
+// Doctor + calendar-day picker backed by GET /Appointments/availability, rendered as a clickable grid of start
+// times. Days and times are the clinic's, whatever zone the browser is in. A start is blocked when the
+// appointment (durationMinutes long) would overlap a booked range, run past closing time, or start in the past.
+// `value` and `onChange` use clinic wall time, "YYYY-MM-DDTHH:mm".
 export default function TimeSlotPicker({ doctorId, value, onChange, durationMinutes = DEFAULT_DURATION_MINUTES }) {
-  const [date, setDate] = useState(value ? value.slice(0, 10) : todayISO())
-  const [booked, setBooked] = useState([])
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState(null)
+  const settings = clinic()
+  const slots = buildSlots(settings)
+  const [date, setDate] = useState(value ? value.slice(0, 10) : clinicToday())
+  const closed = isClosedDay(date)
+  const key = doctorId && date && !closed ? `${doctorId}|${date}` : null
+  // The availability of the last day loaded. It belongs to `key` only when result.key matches.
+  const [result, setResult] = useState({ key: null, booked: [], error: null })
 
   useEffect(() => {
-    if (!doctorId || !date) { setBooked([]); return }
+    if (!key) return
     let cancelled = false
-    setLoading(true)
-    setError(null)
-    getAvailability(doctorId, date)
-      .then((data) => {
+    getAvailability(doctorId, date).then(
+      (data) => {
         if (cancelled) return
         // Older API versions only sent start times; treat each one as a default-length appointment.
         const ranges = data.booked || (data.bookedSlots || []).map((start) => ({ start, end: new Date(new Date(start).getTime() + DEFAULT_DURATION_MINUTES * 60000).toISOString() }))
-        setBooked(ranges.map((r) => ({ start: new Date(r.start), end: new Date(r.end) })))
-      })
-      .catch(() => { if (!cancelled) setError("Couldn't load availability for this day.") })
-      .finally(() => { if (!cancelled) setLoading(false) })
+        setResult({ key, booked: ranges.map((r) => ({ start: new Date(r.start), end: new Date(r.end) })), error: null })
+      },
+      () => { if (!cancelled) setResult({ key, booked: [], error: "Couldn't load availability for this day." }) },
+    )
     return () => { cancelled = true }
-  }, [doctorId, date])
+  }, [key, doctorId, date])
 
-  const slotStart = (slot) => {
-    const d = new Date(`${date}T00:00:00`)
-    d.setHours(slot.hours, slot.minutes, 0, 0)
-    return d
-  }
+  const loading = key !== null && result.key !== key
+  const booked = result.key === key ? result.booked : []
+  const error = result.key === key ? result.error : null
+
+  const slotStart = (slot) => clinicTimeToDate(`${date}T${slot.label}`)
   const duration = Number(durationMinutes) || DEFAULT_DURATION_MINUTES
 
   // Same rule as the API: [start, end) ranges overlap when each starts before the other ends,
@@ -57,20 +59,13 @@ export default function TimeSlotPicker({ doctorId, value, onChange, durationMinu
     return booked.some((r) => r.start < end && r.end > start)
   }
 
-  const endsAfterClosing = (slot) => slot.hours * 60 + slot.minutes + duration > CLOSE_HOUR * 60
-
-  const selectedLocal = value ? new Date(value) : null
-  const isSelected = (slot) => selectedLocal && selectedLocal.toDateString() === new Date(`${date}T00:00:00`).toDateString() && selectedLocal.getHours() === slot.hours && selectedLocal.getMinutes() === slot.minutes
+  const endsAfterClosing = (slot) => slot.minutes + duration > settings.closeHour * 60
+  const isSelected = (slot) => value === `${date}T${slot.label}`
 
   const now = new Date()
   const isPast = (slot) => slotStart(slot) <= now
 
-  const pickSlot = (slot) => {
-    const picked = new Date(`${date}T00:00:00`)
-    picked.setHours(slot.hours, slot.minutes, 0, 0)
-    const local = new Date(picked.getTime() - picked.getTimezoneOffset() * 60000).toISOString().slice(0, 16)
-    onChange(local)
-  }
+  const pickSlot = (slot) => onChange(`${date}T${slot.label}`)
 
   return (
     <div className="flex flex-col gap-3">
@@ -79,7 +74,7 @@ export default function TimeSlotPicker({ doctorId, value, onChange, durationMinu
         <input
           type="date"
           className="w-full box-border mt-1.5 px-4 py-3 border border-sky-500/30 rounded-xl text-base"
-          min={todayISO()}
+          min={clinicToday()}
           value={date}
           onChange={(e) => setDate(e.target.value)}
           required
@@ -88,6 +83,8 @@ export default function TimeSlotPicker({ doctorId, value, onChange, durationMinu
 
       {!doctorId ? (
         <p className="text-sm text-[#5d7388]">Select a specialist to see available times.</p>
+      ) : closed ? (
+        <p className="text-sm text-[#5d7388]">The clinic is closed on {weekdayOf(date)}s. Please pick another day.</p>
       ) : loading ? (
         <p className="text-sm text-[#5d7388]">Loading availability…</p>
       ) : error ? (
@@ -100,7 +97,7 @@ export default function TimeSlotPicker({ doctorId, value, onChange, durationMinu
             <span className="inline-flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-sky-500 inline-block" /> Selected</span>
           </div>
           <div className="grid grid-cols-4 sm:grid-cols-5 gap-2 max-h-56 overflow-y-auto p-1">
-            {SLOTS.map((slot) => {
+            {slots.map((slot) => {
               const disabled = isBooked(slot) || isPast(slot) || endsAfterClosing(slot)
               const selected = isSelected(slot)
               return (
@@ -121,6 +118,7 @@ export default function TimeSlotPicker({ doctorId, value, onChange, durationMinu
               )
             })}
           </div>
+          <p className="text-xs text-[#5d7388] m-0">Times are shown in the clinic's time zone ({settings.timeZone}).</p>
         </>
       )}
     </div>

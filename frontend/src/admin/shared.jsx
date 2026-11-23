@@ -1,4 +1,3 @@
-import { useState } from 'react'
 import { statusLabel } from '../services/api'
 
 export function Spinner() { return <span className="inline-block w-5 h-5 border-[3px] border-slate-300 border-t-[#28749b] rounded-full animate-spin" role="status" aria-label="Loading" /> }
@@ -50,19 +49,16 @@ export function ConfirmDialog({ title, message, confirmLabel = 'Delete', busy, o
   )
 }
 
-export function useConfirm() {
-  const [pending, setPending] = useState(null)
-  const [busy, setBusy] = useState(false)
-  const ask = (config) => setPending(config)
-  const cancel = () => { if (!busy) setPending(null) }
-  const confirm = async () => {
-    if (!pending) return
-    setBusy(true)
-    try { await pending.onConfirm() } finally { setBusy(false); setPending(null) }
-  }
-  const dialog = pending ? <ConfirmDialog title={pending.title} message={pending.message} confirmLabel={pending.confirmLabel} busy={busy} onConfirm={confirm} onCancel={cancel} /> : null
-  return { ask, dialog }
+// Previous/next controls for a paged table. Hidden when everything fits on one page.
+export function Pager({ page, pageSize, total, onPage }) {
+  const pages = Math.max(1, Math.ceil(total / pageSize))
+  if (pages <= 1) return null
+  const btn = 'border border-slate-300 bg-white rounded-lg px-3 py-1.5 text-sm font-semibold text-[#28749b] hover:bg-[#eef6fb] cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed'
+  return (
+    <nav className="flex items-center justify-end gap-3 mt-4 text-sm text-[#60788a]" aria-label="Pagination">
+      <span>Page {page} of {pages} · {total} total</span>
+      <button className={btn} disabled={page <= 1} onClick={() => onPage(page - 1)}>Previous</button>
+      <button className={btn} disabled={page >= pages} onClick={() => onPage(page + 1)}>Next</button>
+    </nav>
+  )
 }
-
-export function formatDateTime(value) { return value ? new Date(value).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' }) : '—' }
-export function formatCurrency(value) { return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(value ?? 0) }

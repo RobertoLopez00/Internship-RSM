@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react'
 import { addConsultation, getAppointments, getDentalRecord, getDoctors, statusLabel, upsertDentalRecord } from '../services/api'
-import { formatDateTime, Notice, Spinner } from './shared'
+import { Notice, Spinner } from './shared'
+import { clinicTimeToIso, formatDateTime } from '../services/clinic'
 
 const blankRecord = { medicalHistory: '', allergies: '', medications: '', observations: '' }
+const toForm = (rec) => (rec ? { medicalHistory: rec.medicalHistory || '', allergies: rec.allergies || '', medications: rec.medications || '', observations: rec.observations || '' } : blankRecord)
 const blankConsultation = { doctorId: '', consultationDate: '', notes: '', diagnosis: '', appointmentId: '' }
 
 const inputCls = "px-4 py-3 border border-sky-500/30 rounded-xl text-base font-sans focus:outline-none focus:border-sky-500 focus:bg-sky-500/5 focus:shadow-[0_0_0_3px_rgba(14,165,233,0.1)]"
@@ -21,25 +23,33 @@ export default function DentalRecordModal({ patient, canEdit, onClose }) {
   const [saving, setSaving] = useState(false)
   const [addingConsult, setAddingConsult] = useState(false)
 
-  const load = async () => {
-    setLoading(true)
-    try {
-      // A patient with no dental record yet returns 404, not an empty record. That's expected: the form
-      // starts blank, and saving it or logging the first consultation creates the record.
-      const [rec, docs, appts] = await Promise.all([
-        getDentalRecord(patient.id).catch((e) => (e.status === 404 ? null : Promise.reject(e))),
-        getDoctors(),
-        canEdit ? getAppointments() : Promise.resolve([]),
-      ])
+  // Bumped after adding a consultation to fetch the record again.
+  const [version, setVersion] = useState(0)
+
+  useEffect(() => {
+    let cancelled = false
+    // A patient with no dental record yet returns 404, not an empty record. That's expected: the form
+    // starts blank, and saving it or logging the first consultation creates the record.
+    Promise.all([
+      getDentalRecord(patient.id).catch((e) => (e.status === 404 ? null : Promise.reject(e))),
+      getDoctors(),
+      canEdit ? getAppointments({ patientId: patient.id }) : Promise.resolve([]),
+    ]).then(([rec, docs, appts]) => {
+      if (cancelled) return
       setRecord(rec)
       // `form` is a separate draft copy of `record`'s fields, not `record` itself — this lets
       // the textarea edits stay uncommitted (and cancelable by closing the modal) until Save.
-      setForm(rec ? { medicalHistory: rec.medicalHistory || '', allergies: rec.allergies || '', medications: rec.medications || '', observations: rec.observations || '' } : blankRecord)
+      setForm(toForm(rec))
       setDoctors(docs)
-      setAppointments(appts.filter((a) => a.patientId === patient.id).sort((a, b) => new Date(b.appointmentDate) - new Date(a.appointmentDate)))
-    } catch { setNotice({ type: 'error', text: 'Could not load the dental record.' }) } finally { setLoading(false) }
-  }
-  useEffect(() => { load() }, [patient.id])
+      setAppointments(appts)
+      setLoading(false)
+    }, () => {
+      if (cancelled) return
+      setNotice({ type: 'error', text: 'Could not load the dental record.' })
+      setLoading(false)
+    })
+    return () => { cancelled = true }
+  }, [patient.id, canEdit, version])
 
   const save = async (event) => {
     event.preventDefault()
@@ -52,10 +62,10 @@ export default function DentalRecordModal({ patient, canEdit, onClose }) {
     event.preventDefault()
     setAddingConsult(true)
     try {
-      await addConsultation(patient.id, { ...consultForm, appointmentId: consultForm.appointmentId || null, consultationDate: new Date(consultForm.consultationDate).toISOString() })
+      await addConsultation(patient.id, { ...consultForm, appointmentId: consultForm.appointmentId || null, consultationDate: clinicTimeToIso(consultForm.consultationDate) })
       setConsultForm(blankConsultation)
       setNotice({ type: 'success', text: 'Consultation added.' })
-      load()
+      setVersion((v) => v + 1)
     } catch (e) { setNotice({ type: 'error', text: e.message }) } finally { setAddingConsult(false) }
   }
 
@@ -72,6 +82,7 @@ export default function DentalRecordModal({ patient, canEdit, onClose }) {
           <label className="flex flex-col gap-1 text-sm font-semibold text-[#38566b]">Allergies<textarea className={inputCls} rows="2" value={form.allergies} onChange={(e) => setForm({ ...form, allergies: e.target.value })} disabled={!canEdit} /></label>
           <label className="flex flex-col gap-1 text-sm font-semibold text-[#38566b]">Medications<textarea className={inputCls} rows="2" value={form.medications} onChange={(e) => setForm({ ...form, medications: e.target.value })} disabled={!canEdit} /></label>
           <label className="flex flex-col gap-1 text-sm font-semibold text-[#38566b]">Observations<textarea className={inputCls} rows="2" value={form.observations} onChange={(e) => setForm({ ...form, observations: e.target.value })} disabled={!canEdit} /></label>
+          {record && <p className="m-0 text-xs text-[#60788a]">Created {formatDateTime(record.createdAt)}{record.createdBy ? ` by ${record.createdBy}` : ''}{record.updatedAt ? ` · Last edited ${formatDateTime(record.updatedAt)}${record.updatedBy ? ` by ${record.updatedBy}` : ''}` : ''}</p>}
           {canEdit && <button className={ctaCls} disabled={saving}>{saving ? 'Saving…' : 'Save dental record'}</button>}
         </form>
 
@@ -81,7 +92,7 @@ export default function DentalRecordModal({ patient, canEdit, onClose }) {
           <tbody>
             {(!record || record.consultations?.length === 0) && <tr><td colSpan={4} className="text-[#8a9cab] py-6 text-center">No consultations recorded yet.</td></tr>}
             {record?.consultations?.slice().sort((a, b) => new Date(b.consultationDate) - new Date(a.consultationDate)).map((c) => <tr key={c.id} className="hover:bg-[#f9fbfd]">
-              <td className={tdCls}>{formatDateTime(c.consultationDate)}</td><td className={tdCls}>Dr. {c.doctor?.firstName} {c.doctor?.lastName}</td><td className={tdCls}>{c.diagnosis || '—'}</td><td className={tdCls}>{c.notes}</td>
+              <td className={tdCls}>{formatDateTime(c.consultationDate)}</td><td className={tdCls}>Dr. {c.doctor?.firstName} {c.doctor?.lastName}</td><td className={tdCls}>{c.diagnosis || '—'}</td><td className={tdCls}>{c.notes}{c.createdBy && <><br /><small className="text-[#8a9cab]">Recorded by {c.createdBy}</small></>}</td>
             </tr>)}
           </tbody>
         </table></div>

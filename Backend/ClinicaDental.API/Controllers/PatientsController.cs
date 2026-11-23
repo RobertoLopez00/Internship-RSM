@@ -1,4 +1,6 @@
 using ClinicaDental.API.Contracts;
+using ClinicaDental.API.Services;
+using ClinicaDental.Application.Common;
 using ClinicaDental.Application.Interfaces.Repositories;
 using ClinicaDental.Domain.Entities;
 using Microsoft.AspNetCore.Mvc;
@@ -11,8 +13,14 @@ namespace ClinicaDental.API.Controllers;
 [Authorize(Roles = $"{UserRoles.Admin},{UserRoles.Doctor},{UserRoles.Receptionist}")]
 public class PatientsController(IPatientRepository patients) : ControllerBase
 {
+    // Ordered by name. page/pageSize are optional; when given, the total goes in the X-Total-Count header.
     [HttpGet]
-    public async Task<IActionResult> GetAll() => Ok((await patients.GetAllAsync()).Select(PatientResponse.From));
+    public async Task<IActionResult> GetAll([FromQuery] int? page, [FromQuery] int? pageSize)
+    {
+        var result = await patients.ListAsync(PageRequest.From(page, pageSize));
+        if (page is not null || pageSize is not null) Response.Headers[PagingHeaders.TotalCount] = result.Total.ToString();
+        return Ok(result.Items.Select(PatientResponse.From));
+    }
 
     [HttpGet("{id:guid}")]
     public async Task<IActionResult> GetById(Guid id) =>

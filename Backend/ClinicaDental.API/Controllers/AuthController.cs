@@ -5,19 +5,20 @@ using ClinicaDental.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 
 namespace ClinicaDental.API.Controllers;
 
 [ApiController, Route("api/auth")]
-public class AuthController(AppDbContext context, IJwtTokenService tokens, IConfiguration configuration) : ControllerBase
+public class AuthController(AppDbContext context, IJwtTokenService tokens, IConfiguration configuration, ILogger<AuthController> logger) : ControllerBase
 {
     private readonly PasswordHasher<User> _passwordHasher = new();
 
     // Users with their profile, which GetDisplayName needs.
     private IQueryable<User> UsersWithProfile => context.Users.Include(x => x.Patient).Include(x => x.Doctor);
 
-    [AllowAnonymous, HttpPost("login")]
+    [AllowAnonymous, HttpPost("login"), EnableRateLimiting(RateLimitPolicies.Login)]
     public async Task<ActionResult<AuthResponse>> Login(LoginRequest request)
     {
         var user = await UsersWithProfile.SingleOrDefaultAsync(x => x.Email == request.Email.Trim().ToLower());
@@ -28,7 +29,7 @@ public class AuthController(AppDbContext context, IJwtTokenService tokens, IConf
         return Ok(response);
     }
 
-    [AllowAnonymous, HttpPost("register-patient")]
+    [AllowAnonymous, HttpPost("register-patient"), EnableRateLimiting(RateLimitPolicies.Register)]
     public async Task<ActionResult<AuthResponse>> RegisterPatient(RegisterPatientRequest request)
     {
         var email = request.Email.Trim().ToLowerInvariant();
@@ -46,16 +47,26 @@ public class AuthController(AppDbContext context, IJwtTokenService tokens, IConf
         return Ok(response);
     }
 
-    [AllowAnonymous, HttpPost("refresh")]
+    [AllowAnonymous, HttpPost("refresh"), EnableRateLimiting(RateLimitPolicies.Refresh)]
     public async Task<ActionResult<AuthResponse>> Refresh(RefreshRequest request)
     {
         // Refresh tokens are stored only as a hash, never in plaintext, so lookup re-hashes the incoming token.
         var hash = tokens.HashToken(request.RefreshToken);
         var stored = await context.RefreshTokens.Include(x => x.User).ThenInclude(x => x!.Patient).Include(x => x.User).ThenInclude(x => x!.Doctor).SingleOrDefaultAsync(x => x.TokenHash == hash);
+        // A token that was already rotated (it has a successor) is being replayed: either the client or an attacker
+        // holds a stolen copy, and there's no way to tell which. End every session of that user so the thief's
+        // copy of the newer token stops working too; the real user just signs in again.
+        if (stored is { RevokedAt: not null, ReplacedByTokenId: not null })
+        {
+            var revoked = await context.RefreshTokens
+                .Where(x => x.UserId == stored.UserId && x.RevokedAt == null)
+                .ExecuteUpdateAsync(x => x.SetProperty(t => t.RevokedAt, DateTime.UtcNow));
+            logger.LogWarning("Refresh token reuse detected for user {UserId}; revoked {Count} active sessions", stored.UserId, revoked);
+            return Unauthorized(new { message = "Your session expired. Please sign in again." });
+        }
         if (stored is null || stored.RevokedAt is not null || stored.ExpiresAt <= DateTime.UtcNow || stored.User is null || !stored.User.IsActive)
             return Unauthorized(new { message = "Your session expired. Please sign in again." });
-        // Rotation: revoke the used token and link it to its replacement, so a stolen/replayed
-        // refresh token can be detected (its replacement chain lets us trace reuse).
+        // Rotation: revoke the used token and link it to its replacement, so a replay of it is caught above.
         stored.RevokedAt = DateTime.UtcNow;
         var (response, next) = IssueTokens(stored.User);
         stored.ReplacedByToken = next;

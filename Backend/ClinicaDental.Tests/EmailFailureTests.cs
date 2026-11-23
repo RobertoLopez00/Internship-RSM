@@ -27,7 +27,7 @@ public class FailingEmailAppFactory : ClinicaAppFactory
 
     private sealed class FailingEmailSender : IEmailSender
     {
-        public Task SendAsync(string recipient, string subject, string body, CancellationToken cancellationToken = default, bool isHtml = false) =>
+        public Task SendAsync(string recipient, string subject, string body, CancellationToken cancellationToken = default, bool isHtml = false, string? replyTo = null) =>
             recipient.StartsWith(FailingPrefix) ? throw new SmtpException("Failure sending mail.") : Task.CompletedTask;
     }
 }
@@ -61,7 +61,7 @@ public class EmailFailureTests : IClassFixture<FailingEmailAppFactory>
         var failingAppointment = await IdOf(await client.BookAsync(failingPatient, await client.CreateDoctorAsync(), start));
         var okAppointment = await IdOf(await client.BookAsync(okPatient, await client.CreateDoctorAsync(), start));
 
-        var service = new AppointmentReminderService(_factory.Services.GetRequiredService<IServiceScopeFactory>(), NullLogger<AppointmentReminderService>.Instance);
+        var service = new AppointmentReminderService(_factory.Services.GetRequiredService<IServiceScopeFactory>(), _factory.Services.GetRequiredService<ClinicaDental.Application.Clinic.ClinicClock>(), NullLogger<AppointmentReminderService>.Instance);
         await service.SendReminders(CancellationToken.None);
 
         Assert.Null(_factory.WithDb(db => db.Appointments.Single(x => x.Id == failingAppointment).ReminderSentAt));

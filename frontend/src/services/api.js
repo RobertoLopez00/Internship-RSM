@@ -40,7 +40,7 @@ function networkError(path, cause) {
 }
 
 // Two request helpers, one convention: both normalize network failures and non-2xx responses
-// into ApiError, and both treat 204 (No Content) as "no body to parse" rather than an error.
+// into ApiError, and both treat an empty body (204, 202) as null rather than an error.
 // publicRequest is for unauthenticated endpoints (plain fetch); request is for everything behind
 // login and delegates to authorizedFetch, which owns token attachment/refresh (see auth.js).
 async function publicRequest(path, options = {}) {
@@ -48,10 +48,16 @@ async function publicRequest(path, options = {}) {
   try { response = await fetch(`${API_BASE_URL}${path}`, { ...options, headers: { 'Content-Type': 'application/json', ...options.headers } }) }
   catch (cause) { throw networkError(path, cause) }
   if (!response.ok) throw await extractError(response, path)
-  return response.status === 204 ? null : response.json()
+  return readBody(response)
 }
 
-async function request(path, options = {}) {
+// 204 No Content and 202 Accepted come back without a body.
+async function readBody(response) {
+  const text = await response.text()
+  return text ? JSON.parse(text) : null
+}
+
+async function rawRequest(path, options = {}) {
   let response
   try { response = await authorizedFetch(path, { ...options, headers: { 'Content-Type': 'application/json', ...options.headers } }) }
   catch (cause) {
@@ -61,8 +67,26 @@ async function request(path, options = {}) {
     throw networkError(path, cause)
   }
   if (!response.ok) throw await extractError(response, path)
-  return response.status === 204 ? null : response.json()
+  return response
 }
+
+async function request(path, options = {}) {
+  return readBody(await rawRequest(path, options))
+}
+
+// For list endpoints called with page/pageSize: the API returns the page as an array and the total
+// number of matches in the X-Total-Count header.
+async function pagedRequest(path) {
+  const response = await rawRequest(path, { headers: { 'Content-Type': 'application/json' } })
+  return { items: await response.json(), total: Number(response.headers.get('X-Total-Count') ?? 0) }
+}
+
+const query = (params) => {
+  const search = new URLSearchParams(Object.entries(params).filter(([, v]) => v !== undefined && v !== null && v !== ''))
+  return search.size ? `?${search}` : ''
+}
+
+export const PAGE_SIZE = 25
 
 const asJson = (method, body) => ({ method, body: JSON.stringify(body) })
 
@@ -74,6 +98,7 @@ export const getDoctorsPublic = () => publicRequest('/Doctors')
 export const getServicesPublic = () => publicRequest('/services')
 export const registerPatient = (data) => publicRequest('/auth/register-patient', asJson('POST', data))
 export const getAvailability = (doctorId, date) => publicRequest(`/Appointments/availability?doctorId=${doctorId}&date=${date}`)
+export const sendContactMessage = (data) => publicRequest('/clinic/contact', asJson('POST', data))
 
 // Patients
 export const getPatients = () => request('/Patients')
@@ -90,7 +115,9 @@ export const deleteDoctor = (id) => request(`/Doctors/${id}`, { method: 'DELETE'
 export const getSpecialties = () => request('/specialties')
 
 // Appointments
-export const getAppointments = () => request('/Appointments')
+// Every appointment, or only one patient's. Newest first.
+export const getAppointments = ({ patientId } = {}) => request(`/Appointments${query({ patientId })}`)
+export const getAppointmentsPage = (page, pageSize = PAGE_SIZE) => pagedRequest(`/Appointments${query({ page, pageSize })}`)
 export const getMyAppointments = () => request('/Appointments/mine')
 export const createAppointment = (data) => request('/Appointments', asJson('POST', data))
 export const updateAppointment = (id, data) => request(`/Appointments/${id}`, asJson('PUT', data))
@@ -106,6 +133,7 @@ export const deleteService = (id) => request(`/services/${id}`, { method: 'DELET
 
 // Treatments & Payments
 export const getTreatments = () => request('/treatments')
+export const getTreatmentsPage = (page, pageSize = PAGE_SIZE) => pagedRequest(`/treatments${query({ page, pageSize })}`)
 export const getTreatment = (id) => request(`/treatments/${id}`)
 export const createTreatment = (data) => request('/treatments', asJson('POST', data))
 export const updateTreatment = (id, data) => request(`/treatments/${id}`, asJson('PUT', data))

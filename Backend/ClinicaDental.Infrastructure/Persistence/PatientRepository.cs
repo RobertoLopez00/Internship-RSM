@@ -1,3 +1,4 @@
+using ClinicaDental.Application.Common;
 using ClinicaDental.Application.Interfaces.Repositories;
 using ClinicaDental.Domain.Entities;
 using Microsoft.EntityFrameworkCore;
@@ -6,8 +7,13 @@ namespace ClinicaDental.Infrastructure.Persistence;
 
 public class PatientRepository(AppDbContext context) : IPatientRepository
 {
-    public Task<List<Patient>> GetAllAsync() =>
-        context.Patients.AsNoTracking().OrderBy(p => p.LastName).ThenBy(p => p.FirstName).ToListAsync();
+    public async Task<PagedResult<Patient>> ListAsync(PageRequest? page)
+    {
+        var total = await context.Patients.CountAsync();
+        var ordered = context.Patients.AsNoTracking().OrderBy(p => p.LastName).ThenBy(p => p.FirstName).ThenBy(p => p.Id);
+        var items = page is null ? await ordered.ToListAsync() : await ordered.Skip(page.Skip).Take(page.PageSize).ToListAsync();
+        return new PagedResult<Patient>(items, total);
+    }
 
     // Tracked because callers edit the result.
     public Task<Patient?> GetByIdAsync(Guid id) => context.Patients.FirstOrDefaultAsync(p => p.Id == id);

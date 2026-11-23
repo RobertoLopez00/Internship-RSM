@@ -1,10 +1,11 @@
 import { useMemo, useState } from 'react'
 import { Icon, SiteFooter, SiteHeader } from './SiteChrome'
+import { formatCurrency } from './services/clinic'
 
 const SERVICE_ICONS = ['dentistry', 'precision_manufacturing', 'auto_awesome', 'health_and_safety', 'child_care', 'medical_services']
 
 const formatPrice = (price) =>
-  typeof price === 'number' ? price.toLocaleString('en-US', { style: 'currency', currency: 'EUR' }) : null
+  typeof price === 'number' ? formatCurrency(price) : null
 
 const formatDuration = (minutes) => {
   if (!minutes) return null

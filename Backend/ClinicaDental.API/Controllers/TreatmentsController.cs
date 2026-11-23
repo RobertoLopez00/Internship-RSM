@@ -1,5 +1,6 @@
 using ClinicaDental.API.Contracts;
 using ClinicaDental.API.Services;
+using ClinicaDental.Application.Common;
 using ClinicaDental.Application.Interfaces.Repositories;
 using ClinicaDental.Domain.Entities;
 using ClinicaDental.Infrastructure.Persistence;
@@ -12,18 +13,26 @@ namespace ClinicaDental.API.Controllers;
 [Authorize(Roles = $"{UserRoles.Admin},{UserRoles.Doctor},{UserRoles.Receptionist}"), ApiController, Route("api/treatments")]
 public class TreatmentsController(ITreatmentRepository treatments, AppDbContext context) : ControllerBase
 {
-    [HttpGet] public Task<List<Treatment>> GetAll() => treatments.GetAllAsync();
-    [HttpGet("{id:guid}")] public async Task<ActionResult<Treatment>> Get(Guid id) => await treatments.GetByIdWithPaymentsAsync(id) is { } treatment ? Ok(treatment) : NotFound();
+    // Newest first. page/pageSize are optional; when given, the total goes in the X-Total-Count header.
+    [HttpGet]
+    public async Task<IEnumerable<TreatmentResponse>> GetAll([FromQuery] int? page, [FromQuery] int? pageSize)
+    {
+        var result = await treatments.ListAsync(PageRequest.From(page, pageSize));
+        if (page is not null || pageSize is not null) Response.Headers[PagingHeaders.TotalCount] = result.Total.ToString();
+        return result.Items.Select(TreatmentResponse.From);
+    }
+
+    [HttpGet("{id:guid}")] public async Task<ActionResult<TreatmentResponse>> Get(Guid id) => await treatments.GetDetailsAsync(id) is { } treatment ? Ok(TreatmentResponse.From(treatment)) : NotFound();
 
     [HttpPost]
-    public async Task<ActionResult<Treatment>> Create(TreatmentRequest request)
+    public async Task<ActionResult<TreatmentResponse>> Create(TreatmentRequest request)
     {
         if (await Validate(request) is { } invalid) return invalid;
         var treatment = new Treatment { Id = Guid.NewGuid() };
         Apply(treatment, request);
         await treatments.AddAsync(treatment);
         await treatments.SaveChangesAsync();
-        return CreatedAtAction(nameof(Get), new { treatment.Id }, treatment);
+        return CreatedAtAction(nameof(Get), new { treatment.Id }, TreatmentResponse.From((await treatments.GetDetailsAsync(treatment.Id))!));
     }
 
     [HttpPut("{id:guid}")]

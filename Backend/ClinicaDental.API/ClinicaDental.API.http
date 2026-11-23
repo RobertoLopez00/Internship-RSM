@@ -1,6 +1,10 @@
 @ClinicaDental.API_HostAddress = http://localhost:5097
 
-GET {{ClinicaDental.API_HostAddress}}/weatherforecast/
+GET {{ClinicaDental.API_HostAddress}}/health
+
+###
+
+GET {{ClinicaDental.API_HostAddress}}/api/clinic/settings
 Accept: application/json
 
 ###

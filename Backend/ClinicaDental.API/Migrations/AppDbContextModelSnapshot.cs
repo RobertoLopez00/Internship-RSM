@@ -98,6 +98,9 @@ namespace ClinicaDental.API.Migrations
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
 
+                    b.Property<Guid?>("CreatedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<Guid>("DentalRecordId")
                         .HasColumnType("uniqueidentifier");
 
@@ -116,15 +119,22 @@ namespace ClinicaDental.API.Migrations
                     b.Property<DateTime?>("UpdatedAt")
                         .HasColumnType("datetime2");
 
+                    b.Property<Guid?>("UpdatedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.HasKey("Id");
 
                     b.HasIndex("AppointmentId")
                         .IsUnique()
                         .HasFilter("[AppointmentId] IS NOT NULL");
 
+                    b.HasIndex("CreatedByUserId");
+
                     b.HasIndex("DentalRecordId");
 
                     b.HasIndex("DoctorId");
+
+                    b.HasIndex("UpdatedByUserId");
 
                     b.ToTable("Consultations");
                 });
@@ -141,6 +151,9 @@ namespace ClinicaDental.API.Migrations
 
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
+
+                    b.Property<Guid?>("CreatedByUserId")
+                        .HasColumnType("uniqueidentifier");
 
                     b.Property<string>("MedicalHistory")
                         .HasMaxLength(4000)
@@ -160,10 +173,17 @@ namespace ClinicaDental.API.Migrations
                     b.Property<DateTime?>("UpdatedAt")
                         .HasColumnType("datetime2");
 
+                    b.Property<Guid?>("UpdatedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.HasKey("Id");
+
+                    b.HasIndex("CreatedByUserId");
 
                     b.HasIndex("PatientId")
                         .IsUnique();
+
+                    b.HasIndex("UpdatedByUserId");
 
                     b.ToTable("DentalRecords");
                 });
@@ -577,6 +597,11 @@ namespace ClinicaDental.API.Migrations
                         .HasForeignKey("AppointmentId")
                         .OnDelete(DeleteBehavior.SetNull);
 
+                    b.HasOne("ClinicaDental.Domain.Entities.User", null)
+                        .WithMany()
+                        .HasForeignKey("CreatedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("ClinicaDental.Domain.Entities.DentalRecord", "DentalRecord")
                         .WithMany("Consultations")
                         .HasForeignKey("DentalRecordId")
@@ -589,6 +614,11 @@ namespace ClinicaDental.API.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
+                    b.HasOne("ClinicaDental.Domain.Entities.User", null)
+                        .WithMany()
+                        .HasForeignKey("UpdatedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.Navigation("Appointment");
 
                     b.Navigation("DentalRecord");
@@ -598,11 +628,21 @@ namespace ClinicaDental.API.Migrations
 
             modelBuilder.Entity("ClinicaDental.Domain.Entities.DentalRecord", b =>
                 {
+                    b.HasOne("ClinicaDental.Domain.Entities.User", null)
+                        .WithMany()
+                        .HasForeignKey("CreatedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("ClinicaDental.Domain.Entities.Patient", "Patient")
                         .WithOne("DentalRecord")
                         .HasForeignKey("ClinicaDental.Domain.Entities.DentalRecord", "PatientId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+
+                    b.HasOne("ClinicaDental.Domain.Entities.User", null)
+                        .WithMany()
+                        .HasForeignKey("UpdatedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict);
 
                     b.Navigation("Patient");
                 });

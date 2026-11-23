@@ -1,10 +1,13 @@
+using ClinicaDental.Application.Common;
 using ClinicaDental.Domain.Entities;
 
 namespace ClinicaDental.Application.Interfaces.Repositories;
 
 public interface IPatientRepository
 {
-    Task<List<Patient>> GetAllAsync();
+    // Ordered by name. Without a page, returns every patient.
+    Task<PagedResult<Patient>> ListAsync(PageRequest? page);
+    // Tracked because callers edit the result.
     Task<Patient?> GetByIdAsync(Guid id);
     Task<bool> EmailInUseAsync(string email, Guid? exceptId = null);
     // Pending or confirmed appointments that haven't started yet.

@@ -20,3 +20,5 @@ public record ConsultationRequest(Guid DoctorId, DateTime ConsultationDate, [Req
 public record TreatmentRequest(Guid PatientId, Guid DoctorId, [Required, MaxLength(200)] string Name, TreatmentStatus Status, DateTime StartDate, DateTime? EndDate, [Range(0, 999999)] decimal Cost, [MaxLength(4000)] string? Observations);
 // Method must be one of PaymentMethods.All.
 public record PaymentRequest([Range(0.01, 999999)] decimal Amount, DateTime PaidAt, [Required, MaxLength(30)] string Method, [MaxLength(1000)] string? Notes);
+// The public contact form. The message is emailed to the clinic with the sender as Reply-To.
+public record ContactRequest([Required, MaxLength(100)] string Name, [Required, EmailAddress, MaxLength(150)] string Email, [MaxLength(30)] string? Phone, [Required, MaxLength(2000)] string Message);

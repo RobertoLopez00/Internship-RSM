@@ -1,9 +1,12 @@
-import { useEffect, useState } from 'react'
-import { AppointmentStatuses, statusLabel, createAppointment, deleteAppointment, getAppointments, getDoctors, getPatients, getServices, updateAppointment } from '../services/api'
-import { EmptyRow, formatDateTime, LoadingRow, Notice, StatusBadge, useConfirm } from './shared'
+import { useState } from 'react'
+import { AppointmentStatuses, PAGE_SIZE, statusLabel, createAppointment, deleteAppointment, getAppointmentsPage, getDoctors, getPatients, getServices, updateAppointment } from '../services/api'
+import { EmptyRow, LoadingRow, Notice, Pager, StatusBadge } from './shared'
+import { useConfirm } from './useConfirm'
+import { useLoader } from '../useLoader'
+import { clinicTimeToIso, dateToClinicTime, formatDateTime } from '../services/clinic'
 
-const localDateTime = (date = new Date()) => new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().slice(0, 16)
-const blank = { patientId: '', doctorId: '', serviceId: '', appointmentDate: localDateTime(new Date(Date.now() + 3600000)), status: 'Pending', notes: '' }
+// Dates in the form are clinic wall time ("YYYY-MM-DDTHH:mm"), the format of datetime-local inputs.
+const blank = () => ({ patientId: '', doctorId: '', serviceId: '', appointmentDate: dateToClinicTime(Date.now() + 3600000), status: 'Pending', notes: '' })
 
 const inputCls = "px-4 py-3 border border-sky-500/30 rounded-xl text-base font-sans focus:outline-none focus:border-sky-500 focus:bg-sky-500/5 focus:shadow-[0_0_0_3px_rgba(14,165,233,0.1)]"
 const ctaCls = "border-0 rounded-full px-5 py-3 font-bold cursor-pointer transition-transform hover:-translate-y-px bg-gradient-to-br from-sky-500 to-teal-500 text-white shadow-[0_12px_24px_rgba(20,184,166,0.22)] disabled:opacity-70 disabled:cursor-wait"
@@ -14,37 +17,26 @@ const thCls = "text-left text-[#60788a] font-bold text-xs uppercase tracking-wid
 const tdCls = "px-3 py-3 border-b border-[#edf2f6] align-middle"
 
 export default function AppointmentsPanel({ canEdit, canDelete }) {
-  const [appointments, setAppointments] = useState([])
-  const [patients, setPatients] = useState([])
-  const [doctors, setDoctors] = useState([])
-  const [services, setServices] = useState([])
-  const [loading, setLoading] = useState(true)
+  const [page, setPage] = useState(1)
   const [notice, setNotice] = useState(null)
   const [form, setForm] = useState(null)
   const [formError, setFormError] = useState('')
   const [saving, setSaving] = useState(false)
   const { ask, dialog } = useConfirm()
 
-  const load = async () => {
-    setLoading(true)
-    try {
-      const [a, p, d, s] = await Promise.all([getAppointments(), getPatients(), getDoctors(), getServices()])
-      setAppointments(a); setPatients(p); setDoctors(d); setServices(s)
-    } catch { setNotice({ type: 'error', text: 'Could not load the schedule.' }) } finally { setLoading(false) }
-  }
-  useEffect(() => { load() }, [])
-
-  const nameOf = (list, id) => list.find((x) => x.id === id)
+  // The table shows one page of appointments (newest first); the form needs every patient, doctor and service.
+  const { data, loading, error: loadError, reload: load } = useLoader(() => Promise.all([getAppointmentsPage(page), getPatients(), getDoctors(), getServices()]), [page])
+  const [{ items: appointments, total }, patients, doctors, services] = data || [{ items: [], total: 0 }, [], [], []]
   // The form only offers active patients, doctors and services, plus whatever the edited appointment
   // already uses, so an old appointment still shows its (now inactive) doctor instead of a blank select.
   const selectable = (list, currentId) => list.filter((x) => x.isActive || x.id === currentId)
 
-  const openEdit = (appointment) => setForm({ ...appointment, appointmentDate: localDateTime(new Date(appointment.appointmentDate)), serviceId: appointment.serviceId || '' })
+  const openEdit = (appointment) => setForm({ ...appointment, appointmentDate: dateToClinicTime(appointment.appointmentDate), serviceId: appointment.serviceId || '' })
 
   const save = async (event) => {
     event.preventDefault()
     setSaving(true); setFormError('')
-    const payload = { patientId: form.patientId, doctorId: form.doctorId, serviceId: form.serviceId || null, appointmentDate: new Date(form.appointmentDate).toISOString(), status: form.status, notes: form.notes }
+    const payload = { patientId: form.patientId, doctorId: form.doctorId, serviceId: form.serviceId || null, appointmentDate: clinicTimeToIso(form.appointmentDate), status: form.status, notes: form.notes }
     try {
       if (form.id) await updateAppointment(form.id, payload)
       else await createAppointment(payload)
@@ -64,26 +56,26 @@ export default function AppointmentsPanel({ canEdit, canDelete }) {
   })
 
   return <section className="bg-white border border-[#e2edf4] rounded-2xl p-5.5 shadow-[0_6px_18px_rgba(23,51,74,0.04)]">
-    <div className="flex items-center justify-between gap-3 mb-4 flex-wrap"><h2 className="m-0">Schedule</h2>{canEdit && <button className={ctaSmallCls} onClick={() => setForm({ ...blank })}>+ New appointment</button>}</div>
-    <Notice notice={notice} />
+    <div className="flex items-center justify-between gap-3 mb-4 flex-wrap"><h2 className="m-0">Schedule</h2>{canEdit && <button className={ctaSmallCls} onClick={() => setForm(blank())}>+ New appointment</button>}</div>
+    <Notice notice={notice || (loadError && { type: 'error', text: 'Could not load the schedule.' })} />
     <div className="overflow-x-auto"><table className="w-full border-collapse text-sm">
       <thead><tr><th className={thCls}>Date</th><th className={thCls}>Patient</th><th className={thCls}>Doctor</th><th className={thCls}>Service</th><th className={thCls}>Status</th><th className={thCls}></th></tr></thead>
       <tbody>
         {loading && <LoadingRow colSpan={6} />}
         {!loading && appointments.length === 0 && <EmptyRow colSpan={6} />}
-        {!loading && appointments.slice().sort((a, b) => new Date(b.appointmentDate) - new Date(a.appointmentDate)).map((a) => {
-          const patient = nameOf(patients, a.patientId); const doctor = nameOf(doctors, a.doctorId); const service = nameOf(services, a.serviceId)
+        {!loading && appointments.map((a) => {
           return <tr key={a.id} className="hover:bg-[#f9fbfd]">
             <td className={tdCls}>{formatDateTime(a.appointmentDate)}</td>
-            <td className={tdCls}>{patient ? `${patient.firstName} ${patient.lastName}` : '—'}</td>
-            <td className={tdCls}>{doctor ? `Dr. ${doctor.firstName} ${doctor.lastName}` : '—'}</td>
-            <td className={tdCls}>{service?.name || '—'}</td>
+            <td className={tdCls}>{a.patientName || '—'}</td>
+            <td className={tdCls}>{a.doctorName ? `Dr. ${a.doctorName}` : '—'}</td>
+            <td className={tdCls}>{a.serviceName || '—'}</td>
             <td className={tdCls}>{canEdit ? <select className="border border-slate-300 rounded-lg px-2 py-1.5" value={a.status} onChange={(e) => changeStatus(a, e.target.value)}>{AppointmentStatuses.map((s) => <option key={s} value={s}>{statusLabel(s)}</option>)}</select> : <StatusBadge status={a.status} />}</td>
             <td className={`${tdCls} flex gap-2 justify-end flex-wrap`}>{canEdit && <button className={iconBtnCls} onClick={() => openEdit(a)}>Edit</button>}{canDelete && <button className={iconBtnDangerCls} onClick={() => remove(a)}>Delete</button>}</td>
           </tr>
         })}
       </tbody>
     </table></div>
+    <Pager page={page} pageSize={PAGE_SIZE} total={total} onPage={setPage} />
 
     {form && <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[1000] p-4" onMouseDown={() => setForm(null)} role="presentation"><div className="bg-white rounded-3xl max-w-[600px] w-full max-h-[90vh] overflow-y-auto shadow-[0_20px_60px_rgba(0,0,0,0.3)]" onMouseDown={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
       <div className="flex items-center justify-between px-7 pt-7 mb-5"><h2 className="m-0 text-2xl text-[#12314a]">{form.id ? 'Edit appointment' : 'New appointment'}</h2><button className="bg-none border-0 text-[#5d7388] cursor-pointer p-0 w-10 h-10 flex items-center justify-center hover:text-[#12314a] text-2xl" onClick={() => setForm(null)} aria-label="Close">×</button></div>

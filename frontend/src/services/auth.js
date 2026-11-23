@@ -50,21 +50,37 @@ let sessionExpiredListener = null
 export const onSessionExpired = (callback) => { sessionExpiredListener = callback }
 const expireSession = () => { clearSession(); sessionExpiredListener?.(); throw new SessionExpiredError() }
 
-// Acts as a fetch interceptor: attaches the access token, and on a 401 transparently tries to
-// refresh it once and replay the original request before giving up. Callers (api.js) never have
-// to think about token expiry — they just get a normal Response or a SessionExpiredError.
+// One refresh at a time. Panels load several resources in parallel, so an expired access token makes them all
+// fail with 401 together. Each one used to send the same refresh token; the first rotated it, the rest were
+// rejected and the user was logged out. Now they all wait for the same refresh. Across tabs, a Web Lock does the
+// same, and a tab that finds a newer refresh token than the one it saw just uses it.
+let refreshInFlight = null
+
+async function refreshSession(staleRefreshToken) {
+  const run = async () => {
+    const current = localStorage.getItem(REFRESH_KEY)
+    if (!current) return false
+    if (current !== staleRefreshToken) return true // another tab or request already refreshed
+    const response = await fetch(`${API_BASE_URL}/auth/refresh`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ refreshToken: current }) })
+    if (!response.ok) return false
+    saveSession(await response.json())
+    return true
+  }
+  const locked = () => (globalThis.navigator?.locks ? globalThis.navigator.locks.request('dentalcare-refresh', run) : run())
+  refreshInFlight ??= locked().finally(() => { refreshInFlight = null })
+  return refreshInFlight
+}
+
+// Acts as a fetch interceptor: attaches the access token, and on a 401 transparently refreshes it once and
+// replays the original request before giving up. Callers (api.js) never have to think about token expiry —
+// they just get a normal Response or a SessionExpiredError.
 export async function authorizedFetch(path, options = {}) {
   const send = (token) => fetch(`${API_BASE_URL}${path}`, { ...options, headers: { ...options.headers, Authorization: `Bearer ${token}` } })
+  const refreshTokenUsed = localStorage.getItem(REFRESH_KEY)
   let response = await send(localStorage.getItem(TOKEN_KEY))
   if (response.status !== 401) return response
-  // Access token expired (or invalid) — try to mint a new one from the refresh token.
-  const refreshToken = localStorage.getItem(REFRESH_KEY)
-  if (!refreshToken) expireSession()
-  const refresh = await fetch(`${API_BASE_URL}/auth/refresh`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ refreshToken }) })
-  if (!refresh.ok) expireSession()
-  saveSession(await refresh.json())
-  // Replay the original request with the freshly saved access token; a second 401 here means
-  // the new token is also being rejected (e.g. account disabled), so give up entirely.
+  if (!refreshTokenUsed || !(await refreshSession(refreshTokenUsed))) expireSession()
+  // Replay with the fresh access token; a second 401 means the new token is rejected too (e.g. account disabled).
   response = await send(localStorage.getItem(TOKEN_KEY))
   if (response.status === 401) expireSession()
   return response

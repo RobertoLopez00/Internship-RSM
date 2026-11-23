@@ -1,6 +1,9 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
+import { useLoader } from '../useLoader'
 import { createService, deleteService, getServices, updateService } from '../services/api'
-import { EmptyRow, formatCurrency, LoadingRow, Notice, useConfirm } from './shared'
+import { EmptyRow, LoadingRow, Notice } from './shared'
+import { useConfirm } from './useConfirm'
+import { formatCurrency } from '../services/clinic'
 
 const blank = { name: '', description: '', basePrice: 0, durationMinutes: 30, isActive: true }
 
@@ -13,18 +16,13 @@ const thCls = "text-left text-[#60788a] font-bold text-xs uppercase tracking-wid
 const tdCls = "px-3 py-3 border-b border-[#edf2f6] align-middle"
 
 export default function ServicesPanel({ canEdit, canDelete }) {
-  const [services, setServices] = useState([])
-  const [loading, setLoading] = useState(true)
   const [notice, setNotice] = useState(null)
   const [form, setForm] = useState(null)
   const [saving, setSaving] = useState(false)
   const { ask, dialog } = useConfirm()
 
-  const load = async () => {
-    setLoading(true)
-    try { setServices(await getServices()) } catch { setNotice({ type: 'error', text: 'Could not load services.' }) } finally { setLoading(false) }
-  }
-  useEffect(() => { load() }, [])
+  const { data, loading, error: loadError, reload: load } = useLoader(getServices)
+  const services = data || []
 
   const save = async (event) => {
     event.preventDefault()
@@ -46,7 +44,7 @@ export default function ServicesPanel({ canEdit, canDelete }) {
 
   return <section className="bg-white border border-[#e2edf4] rounded-2xl p-5.5 shadow-[0_6px_18px_rgba(23,51,74,0.04)]">
     <div className="flex items-center justify-between gap-3 mb-4 flex-wrap"><h2 className="m-0">Services</h2>{canEdit && <button className={ctaSmallCls} onClick={() => setForm({ ...blank })}>+ New service</button>}</div>
-    <Notice notice={notice} />
+    <Notice notice={notice || (loadError && { type: 'error', text: 'Could not load services.' })} />
     <div className="overflow-x-auto"><table className="w-full border-collapse text-sm">
       <thead><tr><th className={thCls}>Name</th><th className={thCls}>Base price</th><th className={thCls}>Duration</th><th className={thCls}>Status</th>{canEdit && <th className={thCls}></th>}</tr></thead>
       <tbody>

@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react'
 import { getMyAppointments } from './services/api'
 import { logout } from './services/auth'
 import { Logo, Icon } from './SiteChrome'
-import { EmptyRow, formatDateTime, LoadingRow, Notice, StatusBadge } from './admin/shared'
+import { EmptyRow, LoadingRow, Notice, StatusBadge } from './admin/shared'
+import { formatDateTime } from './services/clinic'
 
 export default function PatientPortal({ user, onExit, onLogout, onOpenReservation }) {
   const [appointments, setAppointments] = useState([])
@@ -57,8 +58,8 @@ export default function PatientPortal({ user, onExit, onLogout, onOpenReservatio
               {!loading && appointments.map((a) => (
                 <tr key={a.id} className="hover:bg-[#f9fbfd]">
                   <td className="px-4 py-3 border-b border-[#edf2f6] align-middle">{formatDateTime(a.appointmentDate)}</td>
-                  <td className="px-4 py-3 border-b border-[#edf2f6] align-middle">{a.doctor ? `Dr. ${a.doctor.firstName} ${a.doctor.lastName}` : '—'}</td>
-                  <td className="px-4 py-3 border-b border-[#edf2f6] align-middle">{a.service?.name || '—'}</td>
+                  <td className="px-4 py-3 border-b border-[#edf2f6] align-middle">{a.doctorName ? `Dr. ${a.doctorName}` : '—'}</td>
+                  <td className="px-4 py-3 border-b border-[#edf2f6] align-middle">{a.serviceName || '—'}</td>
                   <td className="px-4 py-3 border-b border-[#edf2f6] align-middle"><StatusBadge status={a.status} /></td>
                 </tr>
               ))}
