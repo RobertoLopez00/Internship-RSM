@@ -19,7 +19,7 @@ COPY Backend/ ./Backend/
 RUN dotnet publish Backend/ClinicaDental.API/ClinicaDental.API.csproj -c Release -o /app/publish --no-restore
 
 # Etapa 3: imagen final de runtime
-FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS final
+FROM mcr.microsoft.com/dotnet/aspnet:11.0 AS final
 # Time zone data for Clinic:TimeZone (a no-op if the base image already ships it).
 RUN apt-get update && apt-get install -y --no-install-recommends tzdata && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
