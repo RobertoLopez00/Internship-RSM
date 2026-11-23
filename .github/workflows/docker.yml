@@ -1,0 +1,33 @@
+name: Docker
+
+# Checks that the image used by `docker compose up --build` still builds on Linux, and that the Compose file
+# is valid. Nothing is pushed: the app only runs locally for now.
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: docker-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Validate docker-compose.yml
+        run: docker compose config --quiet
+      - uses: docker/setup-buildx-action@v4
+      - name: Build image
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          push: false
+          tags: clinica-dental-app:ci
+          # Reuses unchanged layers (restore, npm ci) between runs.
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
