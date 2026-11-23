@@ -17,11 +17,11 @@ public class DentalRecordTests : IClassFixture<ClinicaAppFactory>
         client.WithToken(adminToken);
 
         var suffix = Guid.NewGuid().ToString("N")[..8];
-        var patientResponse = await client.PostAsJsonAsync("/api/patients", new { firstName = "Expediente", lastName = "Test", email = $"exp-{suffix}@test.local", phone = "555", dateOfBirth = DateTime.UtcNow.AddYears(-40), isActive = true });
+        var patientResponse = await client.PostAsJsonAsync("/api/patients", new { firstName = "Expediente", lastName = "Test", email = $"exp-{suffix}@test.local", phone = "555", dateOfBirth = "1990-01-01" });
         patientResponse.EnsureSuccessStatusCode();
         var patientId = (await patientResponse.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetGuid();
 
-        var doctorResponse = await client.PostAsJsonAsync("/api/doctors", new { name = "Doc", lastName = "Exp", specialty = "General", phone = "555", email = $"docexp-{suffix}@test.local", isActive = true });
+        var doctorResponse = await client.PostAsJsonAsync("/api/doctors", new { firstName = "Doc", lastName = "Exp", specialty = "General", phone = "555", email = $"docexp-{suffix}@test.local" });
         doctorResponse.EnsureSuccessStatusCode();
         var doctorId = (await doctorResponse.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetGuid();
 
@@ -50,11 +50,14 @@ public class DentalRecordTests : IClassFixture<ClinicaAppFactory>
     }
 
     [Fact]
-    public async Task AddConsultation_WithoutRecord_ReturnsBadRequest()
+    public async Task AddConsultation_WithoutRecord_CreatesTheRecord()
     {
         var (client, patientId, doctorId) = await SeedAsync();
         var response = await client.PostAsJsonAsync($"/api/patients/{patientId}/record/consultations", new { doctorId, consultationDate = DateTime.UtcNow, notes = "Primera visita", diagnosis = (string?)null });
-        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        response.EnsureSuccessStatusCode();
+
+        var record = await client.GetFromJsonAsync<JsonElement>($"/api/patients/{patientId}/record");
+        Assert.Single(record.GetProperty("consultations").EnumerateArray());
     }
 
     [Fact]
@@ -83,7 +86,7 @@ public class DentalRecordTests : IClassFixture<ClinicaAppFactory>
         upsert.EnsureSuccessStatusCode();
 
         var suffix = Guid.NewGuid().ToString("N")[..8];
-        var otherPatientResponse = await adminClient.PostAsJsonAsync("/api/patients", new { firstName = "Otro", lastName = "Paciente", email = $"otro-{suffix}@test.local", phone = "555", dateOfBirth = DateTime.UtcNow.AddYears(-20), isActive = true });
+        var otherPatientResponse = await adminClient.PostAsJsonAsync("/api/patients", new { firstName = "Otro", lastName = "Paciente", email = $"otro-{suffix}@test.local", phone = "555", dateOfBirth = "1990-01-01" });
         otherPatientResponse.EnsureSuccessStatusCode();
         var otherPatientId = (await otherPatientResponse.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetGuid();
 

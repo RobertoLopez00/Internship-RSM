@@ -22,6 +22,10 @@
   </ItemGroup>
 
   <ItemGroup>
+    <InternalsVisibleTo Include="ClinicaDental.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\ClinicaDental.Application\ClinicaDental.Application.csproj" />
     <ProjectReference Include="..\ClinicaDental.Infrastructure\ClinicaDental.Infrastructure.csproj" />
   </ItemGroup>

@@ -5,49 +5,73 @@ using ClinicaDental.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 
 namespace ClinicaDental.API.Controllers;
 
 [ApiController, Route("api/auth")]
-public class AuthController(AppDbContext context, IJwtTokenService tokens, IConfiguration configuration) : ControllerBase
+public class AuthController(AppDbContext context, IJwtTokenService tokens, IConfiguration configuration, ILogger<AuthController> logger) : ControllerBase
 {
     private readonly PasswordHasher<User> _passwordHasher = new();
 
-    [AllowAnonymous, HttpPost("login")]
-    public async Task<ActionResult<object>> Login(LoginRequest request)
+    // Users with their profile, which GetDisplayName needs.
+    private IQueryable<User> UsersWithProfile => context.Users.Include(x => x.Patient).Include(x => x.Doctor);
+
+    [AllowAnonymous, HttpPost("login"), EnableRateLimiting(RateLimitPolicies.Login)]
+    public async Task<ActionResult<AuthResponse>> Login(LoginRequest request)
     {
-        var user = await context.Users.SingleOrDefaultAsync(x => x.Email == request.Email.Trim().ToLower());
+        var user = await UsersWithProfile.SingleOrDefaultAsync(x => x.Email == request.Email.Trim().ToLower());
         if (user is null || !user.IsActive || _passwordHasher.VerifyHashedPassword(user, user.PasswordHash, request.Password) == PasswordVerificationResult.Failed)
             return Unauthorized(new { message = "Invalid credentials." });
-        return Ok(await IssueTokens(user));
+        var (response, _) = IssueTokens(user);
+        await context.SaveChangesAsync();
+        return Ok(response);
     }
 
-    [AllowAnonymous, HttpPost("register-patient")]
-    public async Task<ActionResult<object>> RegisterPatient(RegisterPatientRequest request)
+    [AllowAnonymous, HttpPost("register-patient"), EnableRateLimiting(RateLimitPolicies.Register)]
+    public async Task<ActionResult<AuthResponse>> RegisterPatient(RegisterPatientRequest request)
     {
-        var email = request.Email.Trim().ToLower();
+        var email = request.Email.Trim().ToLowerInvariant();
         if (await context.Users.AnyAsync(x => x.Email == email)) return Conflict(new { message = "This email is already registered." });
-        var patient = new Patient { Id = Guid.NewGuid(), FirstName = request.FirstName.Trim(), LastName = request.LastName.Trim(), Email = email, Phone = request.Phone?.Trim() ?? "", DateOfBirth = request.DateOfBirth ?? DateTime.UtcNow };
-        var user = new User { Id = Guid.NewGuid(), Email = email, Role = UserRoles.Patient, DisplayName = $"{patient.FirstName} {patient.LastName}", PatientId = patient.Id };
+        // Never link to an existing record automatically: knowing someone's email must not be enough to take
+        // over their clinical history. An admin links the login from Users instead.
+        if (await context.Patients.AnyAsync(x => x.Email == email))
+            return Conflict(new { message = "The clinic already has a patient record with this email. Please contact the clinic so they can give you access to it." });
+        var patient = new Patient { Id = Guid.NewGuid(), FirstName = request.FirstName.Trim(), LastName = request.LastName.Trim(), Email = email, Phone = string.IsNullOrWhiteSpace(request.Phone) ? null : request.Phone.Trim(), DateOfBirth = request.DateOfBirth };
+        var user = new User { Id = Guid.NewGuid(), Email = email, Role = UserRoles.Patient, PatientId = patient.Id, Patient = patient };
         user.PasswordHash = _passwordHasher.HashPassword(user, request.Password);
         context.AddRange(patient, user);
+        var (response, _) = IssueTokens(user);
         await context.SaveChangesAsync();
-        return Ok(await IssueTokens(user));
+        return Ok(response);
     }
 
-    [AllowAnonymous, HttpPost("refresh")]
-    public async Task<ActionResult<object>> Refresh(RefreshRequest request)
+    [AllowAnonymous, HttpPost("refresh"), EnableRateLimiting(RateLimitPolicies.Refresh)]
+    public async Task<ActionResult<AuthResponse>> Refresh(RefreshRequest request)
     {
+        // Refresh tokens are stored only as a hash, never in plaintext, so lookup re-hashes the incoming token.
         var hash = tokens.HashToken(request.RefreshToken);
-        var stored = await context.RefreshTokens.Include(x => x.User).SingleOrDefaultAsync(x => x.TokenHash == hash);
+        var stored = await context.RefreshTokens.Include(x => x.User).ThenInclude(x => x!.Patient).Include(x => x.User).ThenInclude(x => x!.Doctor).SingleOrDefaultAsync(x => x.TokenHash == hash);
+        // A token that was already rotated (it has a successor) is being replayed: either the client or an attacker
+        // holds a stolen copy, and there's no way to tell which. End every session of that user so the thief's
+        // copy of the newer token stops working too; the real user just signs in again.
+        if (stored is { RevokedAt: not null, ReplacedByTokenId: not null })
+        {
+            var revoked = await context.RefreshTokens
+                .Where(x => x.UserId == stored.UserId && x.RevokedAt == null)
+                .ExecuteUpdateAsync(x => x.SetProperty(t => t.RevokedAt, DateTime.UtcNow));
+            logger.LogWarning("Refresh token reuse detected for user {UserId}; revoked {Count} active sessions", stored.UserId, revoked);
+            return Unauthorized(new { message = "Your session expired. Please sign in again." });
+        }
         if (stored is null || stored.RevokedAt is not null || stored.ExpiresAt <= DateTime.UtcNow || stored.User is null || !stored.User.IsActive)
             return Unauthorized(new { message = "Your session expired. Please sign in again." });
+        // Rotation: revoke the used token and link it to its replacement, so a replay of it is caught above.
         stored.RevokedAt = DateTime.UtcNow;
-        var next = await IssueTokens(stored.User);
-        stored.ReplacedByTokenHash = tokens.HashToken((string)next.refreshToken);
+        var (response, next) = IssueTokens(stored.User);
+        stored.ReplacedByToken = next;
         await context.SaveChangesAsync();
-        return Ok(next);
+        return Ok(response);
     }
 
     [Authorize, HttpPost("logout")]
@@ -59,18 +83,20 @@ public class AuthController(AppDbContext context, IJwtTokenService tokens, IConf
     }
 
     [Authorize, HttpGet("me")]
-    public async Task<ActionResult<object>> Me()
+    public async Task<ActionResult<SessionUser>> Me()
     {
         var id = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
-        var user = id is null ? null : await context.Users.AsNoTracking().SingleOrDefaultAsync(x => x.Id == Guid.Parse(id));
-        return user is null ? Unauthorized() : Ok(new { user.Id, user.Email, user.Role, user.DisplayName, user.PatientId, user.DoctorId });
+        var user = id is null ? null : await UsersWithProfile.AsNoTracking().SingleOrDefaultAsync(x => x.Id == Guid.Parse(id));
+        return user is null ? Unauthorized() : Ok(SessionUser.From(user));
     }
 
-    private async Task<dynamic> IssueTokens(User user)
+    // Issues a short-lived access token plus a long-lived refresh token; only the refresh token's
+    // hash is persisted, and the raw value is returned to the client exactly once. The caller saves.
+    private (AuthResponse Response, RefreshToken Stored) IssueTokens(User user)
     {
         var rawRefresh = tokens.CreateRefreshToken();
-        context.RefreshTokens.Add(new RefreshToken { Id = Guid.NewGuid(), UserId = user.Id, TokenHash = tokens.HashToken(rawRefresh), ExpiresAt = DateTime.UtcNow.AddDays(configuration.GetValue<int?>("Jwt:RefreshTokenDays") ?? 7) });
-        await context.SaveChangesAsync();
-        return new { accessToken = tokens.CreateAccessToken(user), refreshToken = rawRefresh, user = new { user.Id, user.Email, user.Role, user.DisplayName, user.PatientId, user.DoctorId } };
+        var stored = new RefreshToken { Id = Guid.NewGuid(), UserId = user.Id, TokenHash = tokens.HashToken(rawRefresh), ExpiresAt = DateTime.UtcNow.AddDays(configuration.GetValue<int?>("Jwt:RefreshTokenDays") ?? 7) };
+        context.RefreshTokens.Add(stored);
+        return (new AuthResponse(tokens.CreateAccessToken(user), rawRefresh, SessionUser.From(user)), stored);
     }
 }

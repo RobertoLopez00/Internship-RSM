@@ -2,9 +2,10 @@ services:
   sqlserver:
     image: mcr.microsoft.com/mssql/server:2022-latest
     container_name: clinica-dental-sql
+    restart: unless-stopped
     environment:
       ACCEPT_EULA: "Y"
-      MSSQL_SA_PASSWORD: "YourPassword123"
+      MSSQL_SA_PASSWORD: "${SQL_SA_PASSWORD:-YourPassword123}"
     ports:
       - "1433:1433"
     volumes:
@@ -19,6 +20,7 @@ services:
   mailpit:
     image: axllent/mailpit:latest
     container_name: clinica-dental-mail
+    restart: unless-stopped
     ports:
       - "8025:8025" # web UI: http://localhost:8025
       - "1025:1025" # SMTP
@@ -28,6 +30,9 @@ services:
       context: .
       dockerfile: Dockerfile
     container_name: clinica-dental-app
+    # A tiny init as PID 1: without it, a startup error (missing JWT_KEY, unreachable database) leaves the .NET
+    # process spinning instead of exiting, and the container looks "up" while serving nothing.
+    init: true
     depends_on:
       sqlserver:
         condition: service_healthy
@@ -35,13 +40,19 @@ services:
         condition: service_started
     environment:
       ASPNETCORE_ENVIRONMENT: "Production"
-      ConnectionStrings__DefaultConnection: "Server=sqlserver,1433;Database=ClinicaDentalDb;User Id=sa;Password=YourPassword123;TrustServerCertificate=True;"
-      Jwt__Key: "${JWT_KEY:-change-this-to-a-random-secret-of-at-least-32-chars}"
+      ConnectionStrings__DefaultConnection: "Server=sqlserver,1433;Database=ClinicaDentalDb;User Id=sa;Password=${SQL_SA_PASSWORD:-YourPassword123};TrustServerCertificate=True;"
+      # No default on purpose: without JWT_KEY in .env the app container exits with a message saying how to set it.
+      Jwt__Key: "${JWT_KEY:-}"
       Jwt__Issuer: "ClinicaDental"
       Jwt__Audience: "ClinicaDental.Web"
       BootstrapAdmin__Email: "${BOOTSTRAP_ADMIN_EMAIL:-admin@dentalcare.com}"
       BootstrapAdmin__Password: "${BOOTSTRAP_ADMIN_PASSWORD:-ChangeMe123!}"
       SeedSampleData: "${SEED_SAMPLE_DATA:-true}"
+      Clinic__TimeZone: "${CLINIC_TIMEZONE:-UTC}"
+      Clinic__OpenHour: "${CLINIC_OPEN_HOUR:-9}"
+      Clinic__CloseHour: "${CLINIC_CLOSE_HOUR:-18}"
+      Clinic__Currency: "${CLINIC_CURRENCY:-USD}"
+      Clinic__ContactEmail: "${CLINIC_CONTACT_EMAIL:-}"
       Email__Enabled: "${EMAIL_ENABLED:-true}"
       Email__Host: "${EMAIL_HOST:-mailpit}"
       Email__Port: "${EMAIL_PORT:-1025}"

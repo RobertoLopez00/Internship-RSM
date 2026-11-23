@@ -17,11 +17,11 @@ public class PaymentTests : IClassFixture<ClinicaAppFactory>
         client.WithToken(adminToken);
 
         var suffix = Guid.NewGuid().ToString("N")[..8];
-        var patientResponse = await client.PostAsJsonAsync("/api/patients", new { firstName = "Pago", lastName = "Test", email = $"pago-{suffix}@test.local", phone = "555", dateOfBirth = DateTime.UtcNow.AddYears(-25), isActive = true });
+        var patientResponse = await client.PostAsJsonAsync("/api/patients", new { firstName = "Pago", lastName = "Test", email = $"pago-{suffix}@test.local", phone = "555", dateOfBirth = "1990-01-01" });
         patientResponse.EnsureSuccessStatusCode();
         var patientId = (await patientResponse.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetGuid();
 
-        var doctorResponse = await client.PostAsJsonAsync("/api/doctors", new { name = "Doc", lastName = "Pago", specialty = "General", phone = "555", email = $"docpago-{suffix}@test.local", isActive = true });
+        var doctorResponse = await client.PostAsJsonAsync("/api/doctors", new { firstName = "Doc", lastName = "Pago", specialty = "General", phone = "555", email = $"docpago-{suffix}@test.local" });
         doctorResponse.EnsureSuccessStatusCode();
         var doctorId = (await doctorResponse.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetGuid();
 
@@ -36,7 +36,7 @@ public class PaymentTests : IClassFixture<ClinicaAppFactory>
     public async Task AddPayment_ExceedingBalance_ReturnsBadRequest()
     {
         var (client, treatmentId) = await SeedTreatmentAsync(100m);
-        var response = await client.PostAsJsonAsync($"/api/treatments/{treatmentId}/payments", new { amount = 150m, paidAt = DateTime.UtcNow, method = "Efectivo", notes = (string?)null });
+        var response = await client.PostAsJsonAsync($"/api/treatments/{treatmentId}/payments", new { amount = 150m, paidAt = DateTime.UtcNow, method = "Cash", notes = (string?)null });
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
     }
 
@@ -44,7 +44,7 @@ public class PaymentTests : IClassFixture<ClinicaAppFactory>
     public async Task AddPayment_WithinBalance_Succeeds()
     {
         var (client, treatmentId) = await SeedTreatmentAsync(100m);
-        var response = await client.PostAsJsonAsync($"/api/treatments/{treatmentId}/payments", new { amount = 60m, paidAt = DateTime.UtcNow, method = "Efectivo", notes = (string?)null });
+        var response = await client.PostAsJsonAsync($"/api/treatments/{treatmentId}/payments", new { amount = 60m, paidAt = DateTime.UtcNow, method = "Cash", notes = (string?)null });
         Assert.True(response.IsSuccessStatusCode);
     }
 
@@ -52,10 +52,10 @@ public class PaymentTests : IClassFixture<ClinicaAppFactory>
     public async Task AddPayment_ExceedingRemainingBalanceAfterPartialPayment_ReturnsBadRequest()
     {
         var (client, treatmentId) = await SeedTreatmentAsync(100m);
-        var partial = await client.PostAsJsonAsync($"/api/treatments/{treatmentId}/payments", new { amount = 70m, paidAt = DateTime.UtcNow, method = "Efectivo", notes = (string?)null });
+        var partial = await client.PostAsJsonAsync($"/api/treatments/{treatmentId}/payments", new { amount = 70m, paidAt = DateTime.UtcNow, method = "Cash", notes = (string?)null });
         partial.EnsureSuccessStatusCode();
 
-        var overPay = await client.PostAsJsonAsync($"/api/treatments/{treatmentId}/payments", new { amount = 40m, paidAt = DateTime.UtcNow, method = "Efectivo", notes = (string?)null });
+        var overPay = await client.PostAsJsonAsync($"/api/treatments/{treatmentId}/payments", new { amount = 40m, paidAt = DateTime.UtcNow, method = "Cash", notes = (string?)null });
         Assert.Equal(HttpStatusCode.BadRequest, overPay.StatusCode);
     }
 
@@ -63,10 +63,10 @@ public class PaymentTests : IClassFixture<ClinicaAppFactory>
     public async Task AddPayment_ExactRemainingBalance_Succeeds()
     {
         var (client, treatmentId) = await SeedTreatmentAsync(100m);
-        var partial = await client.PostAsJsonAsync($"/api/treatments/{treatmentId}/payments", new { amount = 70m, paidAt = DateTime.UtcNow, method = "Efectivo", notes = (string?)null });
+        var partial = await client.PostAsJsonAsync($"/api/treatments/{treatmentId}/payments", new { amount = 70m, paidAt = DateTime.UtcNow, method = "Cash", notes = (string?)null });
         partial.EnsureSuccessStatusCode();
 
-        var remainder = await client.PostAsJsonAsync($"/api/treatments/{treatmentId}/payments", new { amount = 30m, paidAt = DateTime.UtcNow, method = "Efectivo", notes = (string?)null });
+        var remainder = await client.PostAsJsonAsync($"/api/treatments/{treatmentId}/payments", new { amount = 30m, paidAt = DateTime.UtcNow, method = "Cash", notes = (string?)null });
         Assert.True(remainder.IsSuccessStatusCode);
     }
 }

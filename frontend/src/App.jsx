@@ -1,73 +1,182 @@
-import { useEffect, useMemo, useState } from 'react'
-import { createAppointment, getDoctorsPublic, getServicesPublic, registerPatient } from './services/api'
-import './App.css'
+import { useEffect, useState } from 'react'
+import { createAppointment, getDoctorsPublic, getServicesPublic, registerPatient, sendContactMessage } from './services/api'
 import AdminPortal from './AdminPortal'
+import PatientPortal from './PatientPortal'
 import LoginView from './LoginView'
-import { clearSession, session } from './services/auth'
+import Home from './Home'
+import TeamPage from './TeamPage'
+import ServicesPage from './ServicesPage'
+import BookingWizard from './BookingWizard'
+import { useRipple } from './useRipple'
+import { clearSession, saveSession, session } from './services/auth'
+import { clinicTimeToDate, clinicTimeToIso } from './services/clinic'
+import { useRoute } from './useRoute'
+import { X } from 'lucide-react'
 
 const emptyReservation = { firstName: '', lastName: '', email: '', password: '', phone: '', appointmentDate: '', doctorId: '', serviceId: '', notes: '' }
 const emptyContact = { name: '', email: '', phone: '', message: '' }
-const localDateTime = (date = new Date()) => new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().slice(0, 16)
 
 function App() {
-  const [adminView, setAdminView] = useState(false)
-  const [loginView, setLoginView] = useState(false)
+  // Each screen has its own URL: / (home), /team, /services, /login and /portal (staff panel or patient portal).
+  const [path, navigate] = useRoute()
+  const adminView = path === '/portal'
+  const loginView = path === '/login'
+  const page = path === '/team' ? 'team' : path === '/services' ? 'services' : 'home'
+  const setPage = (name) => navigate(name === 'home' ? '/' : `/${name}`)
+  const openAdmin = () => navigate(currentUser ? '/portal' : '/login')
+  const leavePortal = () => navigate('/')
+  // currentUser is seeded from localStorage via session() so a page reload doesn't bounce a
+  // logged-in user back to the public site before the admin check below runs.
   const [currentUser, setCurrentUser] = useState(session())
   const [doctors, setDoctors] = useState([])
   const [services, setServices] = useState([])
   const [reserveForm, setReserveForm] = useState(emptyReservation)
   const [contactForm, setContactForm] = useState(emptyContact)
+  // modal is a single slot ('reserve' | 'contact' | null) rather than two booleans, since only
+  // one modal can ever be open at a time.
   const [modal, setModal] = useState(null)
   const [feedback, setFeedback] = useState(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const ripple = useRipple()
 
-  const loadData = async () => {
-    try {
-      const [doctorData, serviceData] = await Promise.all([getDoctorsPublic(), getServicesPublic()])
+  useEffect(() => {
+    let cancelled = false
+    Promise.all([getDoctorsPublic(), getServicesPublic()]).then(([doctorData, serviceData]) => {
+      if (cancelled) return
       setDoctors(doctorData.filter((doctor) => doctor.isActive !== false))
       setServices(serviceData.filter((service) => service.isActive !== false))
-    } catch { setFeedback({ type: 'error', text: "We couldn't load the information. Please reload the page." }) }
-  }
-  useEffect(() => { loadData() }, [])
+    }, () => { if (!cancelled) setFeedback({ type: 'error', text: "We couldn't load the information. Please reload the page." }) })
+    return () => { cancelled = true }
+  }, [])
 
   const closeModal = () => { setModal(null); setIsSubmitting(false) }
-  const openReservation = ({ doctorId = '', serviceId = '' } = {}) => {
+  const openReservation = ({ doctorId = '', serviceId = '', appointmentDate = '' } = {}) => {
     setFeedback(null)
-    setReserveForm({ ...emptyReservation, doctorId, serviceId, appointmentDate: localDateTime(new Date(Date.now() + 86400000)) })
+    // appointmentDate is clinic wall time from a TimeSlotPicker, or empty until the visitor picks a slot.
+    setReserveForm({ ...emptyReservation, doctorId, serviceId, appointmentDate })
     setModal('reserve')
   }
   const reservationChange = ({ target: { name, value } }) => setReserveForm((current) => ({ ...current, [name]: value }))
   const contactChange = ({ target: { name, value } }) => setContactForm((current) => ({ ...current, [name]: value }))
 
+  // Booking from the public site both registers a new patient account AND creates the
+  // appointment in one flow — there's no separate "book as guest" path, so this always creates
+  // a login-capable account first and uses its patientId for the appointment.
   const submitReservation = async (event) => {
     event.preventDefault()
-    if (new Date(reserveForm.appointmentDate) <= new Date()) { setFeedback({ type: 'error', text: 'Please select a future date and time for your appointment.' }); return }
+    if (!reserveForm.appointmentDate || clinicTimeToDate(reserveForm.appointmentDate) <= new Date()) { setFeedback({ type: 'error', text: 'Please select an available time for your appointment.' }); return }
     setIsSubmitting(true)
     try {
-      const auth = await registerPatient({ firstName: reserveForm.firstName.trim(), lastName: reserveForm.lastName.trim(), email: reserveForm.email.trim(), password: reserveForm.password, phone: reserveForm.phone.trim(), dateOfBirth: new Date().toISOString() })
-      setCurrentUser(auth.user)
-      await createAppointment({ patientId: auth.user.patientId, doctorId: reserveForm.doctorId, serviceId: reserveForm.serviceId || null, appointmentDate: new Date(reserveForm.appointmentDate).toISOString(), status: 'Pending', notes: reserveForm.notes.trim() })
-      closeModal(); setFeedback({ type: 'success', text: 'Your appointment was booked and we created your patient account. We’ll confirm the details by email.' })
+      // A signed-in patient already has an account — reuse it instead of registering a new one
+      // (which would fail on the duplicate email or create an unwanted second account).
+      let patientId = currentUser?.patientId
+      if (!patientId) {
+        const auth = await registerPatient({ firstName: reserveForm.firstName.trim(), lastName: reserveForm.lastName.trim(), email: reserveForm.email.trim(), password: reserveForm.password, phone: reserveForm.phone.trim(), dateOfBirth: null })
+        const user = saveSession(auth)
+        setCurrentUser(user)
+        patientId = user.patientId
+      }
+      await createAppointment({ patientId, doctorId: reserveForm.doctorId, serviceId: reserveForm.serviceId || null, appointmentDate: clinicTimeToIso(reserveForm.appointmentDate), status: 'Pending', notes: reserveForm.notes.trim() })
+      closeModal(); setFeedback({ type: 'success', text: currentUser ? 'Your appointment was booked. We’ll confirm the details by email.' : 'Your appointment was booked and we created your patient account. We’ll confirm the details by email.' })
     } catch (e) { setFeedback({ type: 'error', text: e.message || 'We could not book the appointment. Please try again.' }) } finally { setIsSubmitting(false) }
   }
-  const submitContact = (event) => {
+  // Emailed to the clinic inbox. On failure the modal stays open with the message so nothing typed is lost.
+  const submitContact = async (event) => {
     event.preventDefault()
-    setContactForm(emptyContact); closeModal(); setFeedback({ type: 'success', text: 'We received your message. Our team will get back to you soon.' })
+    setIsSubmitting(true); setFeedback(null)
+    try {
+      await sendContactMessage({ name: contactForm.name.trim(), email: contactForm.email.trim(), phone: contactForm.phone.trim() || null, message: contactForm.message.trim() })
+      setContactForm(emptyContact); closeModal(); setFeedback({ type: 'success', text: 'We received your message. Our team will get back to you soon.' })
+    } catch (e) { setFeedback({ type: 'error', text: e.message || 'We could not send your message. Please try again.' }) } finally { setIsSubmitting(false) }
   }
 
-  if (loginView) return <LoginView onCancel={() => setLoginView(false)} onSuccess={(user) => { setCurrentUser(user); setLoginView(false); setAdminView(true) }} />
-  if (adminView) return <AdminPortal user={currentUser} onLogout={() => { clearSession(); setCurrentUser(null); setAdminView(false) }} onExit={() => setAdminView(false)} />
-  return <div className="clinic-shell">
-    <header className="topbar"><a className="brand" href="#home" aria-label="DentalCare, home"><span className="brand-mark">D</span><span>DentalCare</span></a><nav className="nav" aria-label="Main navigation"><a href="#home">Home</a><a href="#services">Services</a><a href="#team">Team</a><a href="#contact">Contact</a></nav><button className="secondary" onClick={() => currentUser ? setAdminView(true) : setLoginView(true)}>{currentUser ? 'My panel' : 'Sign in'}</button><button className="cta" onClick={() => openReservation()}>Book appointment</button></header>
-    {feedback && <div className={`feedback ${feedback.type}`} role="status"><span>{feedback.text}</span><button onClick={() => setFeedback(null)} aria-label="Dismiss notice">×</button></div>}
+  // Early returns switch to a full-screen view (login or admin) instead of a route change —
+  // whichever is true short-circuits before the public site JSX below is ever built.
+  const signOut = () => { clearSession(); setCurrentUser(null); navigate('/') }
+  // /portal without a session shows the sign-in form; signing in stays on /portal.
+  if (loginView || (adminView && !currentUser)) return <LoginView onCancel={leavePortal} onSuccess={(user) => { setCurrentUser(user); navigate('/portal', { replace: true }) }} />
+  if (adminView && currentUser?.role !== 'Patient') return <AdminPortal user={currentUser} onLogout={signOut} onExit={leavePortal} />
 
-    <main className="hero-section" id="home"><div className="hero-copy"><p className="eyebrow">Your smile, in good hands</p><h1>Modern, human dental care.</h1><p className="lead">At DentalCare we take care of every detail so every visit is comfortable, safe, and effective for the whole family.</p><div className="hero-actions"><button className="cta large" onClick={() => openReservation()}>Book appointment</button><a className="secondary" href="#services">View services</a></div><div className="stats"><div className="stat-card"><strong>{doctors.length}</strong><span>Specialists</span></div><div className="stat-card"><strong>{services.length}</strong><span>Services available</span></div></div></div></main>
+  return (
+    <>
+      {feedback && (
+        <div className={`fixed top-4 left-1/2 -translate-x-1/2 z-[2000] w-[min(560px,calc(100%-32px))] px-4 py-3.5 rounded-2xl text-[#12314a] bg-white border shadow-[0_16px_36px_rgba(15,23,42,0.16)] flex justify-between gap-4 items-center ${feedback.type === 'success' ? 'border-green-300' : 'border-red-300'}`} role="status">
+          <span>{feedback.text}</span>
+          <button className="border-0 bg-transparent cursor-pointer text-xl text-inherit" onClick={() => setFeedback(null)} aria-label="Dismiss notice"><X className="w-5 h-5" /></button>
+        </div>
+      )}
+      {adminView && currentUser?.role === 'Patient' ? (
+        <PatientPortal user={currentUser} onLogout={signOut} onExit={leavePortal} onOpenReservation={openReservation} />
+      ) : page === 'team' ? (
+        <TeamPage
+          doctors={doctors}
+          services={services}
+          currentUser={currentUser}
+          onOpenAdmin={openAdmin}
+          onOpenReservation={openReservation}
+          onNavigateHome={() => setPage('home')}
+          onNavigateTeam={() => setPage('team')}
+          onNavigateServices={() => setPage('services')}
+        />
+      ) : page === 'services' ? (
+        <ServicesPage
+          doctors={doctors}
+          services={services}
+          currentUser={currentUser}
+          onOpenAdmin={openAdmin}
+          onOpenReservation={openReservation}
+          onNavigateHome={() => setPage('home')}
+          onNavigateTeam={() => setPage('team')}
+          onNavigateServices={() => setPage('services')}
+        />
+      ) : (
+        <Home
+          doctors={doctors}
+          services={services}
+          currentUser={currentUser}
+          onOpenAdmin={openAdmin}
+          onOpenLogin={() => navigate('/login')}
+          onOpenReservation={openReservation}
+          onOpenContact={() => { setFeedback(null); setModal('contact') }}
+          onNavigateHome={() => setPage('home')}
+          onNavigateTeam={() => setPage('team')}
+          onNavigateServices={() => setPage('services')}
+        />
+      )}
 
-    <section className="services" id="services"><p className="section-label">Services</p><h2>Dental solutions for every stage</h2><p className="section-description">Choose the service you need and we'll help you find the ideal time slot.</p><div className="service-grid">{services.map((service) => <article key={service.id} className="service-item"><span className="service-icon">✦</span><h3>{service.name}</h3><button className="text-button" onClick={() => openReservation({ serviceId: service.id })}>Book this service <span aria-hidden="true">→</span></button></article>)}</div></section>
-    <section className="team" id="team"><p className="section-label">Our team</p><h2>Specialists dedicated to your health</h2><div className="team-grid">{doctors.map((doctor) => <article key={doctor.id} className="team-card"><div className="team-avatar" aria-hidden="true">{doctor.name.charAt(0)}{doctor.lastName.charAt(0)}</div><h3>Dr. {doctor.name} {doctor.lastName}</h3><p className="specialty">{doctor.specialty}</p><a className="contact" href={`mailto:${doctor.email}`}>{doctor.email}</a><button className="cta-small" onClick={() => openReservation({ doctorId: doctor.id })}>Book with this specialist</button></article>)}</div></section>
-    <section className="contact" id="contact"><p className="section-label">Contact us</p><h2>Questions? We're here to help</h2><div className="contact-content"><div className="contact-info"><div className="info-item"><span className="info-icon">📍</span><div><strong>Location</strong><p>123 Main Street, Dental City</p></div></div><div className="info-item"><span className="info-icon">📞</span><div><strong>Phone</strong><p><a href="tel:+15551234567">+1 (555) 123-4567</a></p></div></div><div className="info-item"><span className="info-icon">✉️</span><div><strong>Email</strong><p><a href="mailto:info@dentalcare.com">info@dentalcare.com</a></p></div></div></div><button className="cta large" onClick={() => { setFeedback(null); setModal('contact') }}>Send message</button></div></section>
-
-    {modal && <div className="modal-overlay" onMouseDown={closeModal} role="presentation"><div className="modal" onMouseDown={(event) => event.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="modal-title"><div className="modal-header"><h2 id="modal-title">{modal === 'reserve' ? 'Book your appointment' : 'Send message'}</h2><button className="close-btn" onClick={closeModal} aria-label="Close">×</button></div>{modal === 'reserve' ? <form onSubmit={submitReservation} className="form"><div className="form-row"><input name="firstName" placeholder="First name" value={reserveForm.firstName} onChange={reservationChange} required /><input name="lastName" placeholder="Last name" value={reserveForm.lastName} onChange={reservationChange} required /></div><div className="form-row"><input type="email" name="email" placeholder="Email" value={reserveForm.email} onChange={reservationChange} required /><input type="tel" name="phone" placeholder="Phone" value={reserveForm.phone} onChange={reservationChange} required /></div><input type="password" name="password" placeholder="Create a password (min. 8 characters)" minLength={8} value={reserveForm.password} onChange={reservationChange} required /><div className="form-row"><select name="serviceId" value={reserveForm.serviceId} onChange={reservationChange} required><option value="">Select a service</option>{services.map((service) => <option key={service.id} value={service.id}>{service.name}</option>)}</select><select name="doctorId" value={reserveForm.doctorId} onChange={reservationChange} required><option value="">Select a specialist</option>{doctors.map((doctor) => <option key={doctor.id} value={doctor.id}>Dr. {doctor.name} {doctor.lastName} · {doctor.specialty}</option>)}</select></div><input type="datetime-local" name="appointmentDate" min={localDateTime()} value={reserveForm.appointmentDate} onChange={reservationChange} required /><textarea name="notes" placeholder="Additional notes (optional)" value={reserveForm.notes} onChange={reservationChange} rows="4" /><button type="submit" className="cta" disabled={isSubmitting}>{isSubmitting ? 'Booking…' : 'Confirm appointment'}</button></form> : <form onSubmit={submitContact} className="form"><input name="name" placeholder="Your name" value={contactForm.name} onChange={contactChange} required /><div className="form-row"><input type="email" name="email" placeholder="Your email" value={contactForm.email} onChange={contactChange} required /><input type="tel" name="phone" placeholder="Phone (optional)" value={contactForm.phone} onChange={contactChange} /></div><textarea name="message" placeholder="How can we help you?" value={contactForm.message} onChange={contactChange} rows="5" required /><button type="submit" className="cta">Send message</button></form>}</div></div>}
-  </div>
+      {modal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[1000] p-4" onMouseDown={closeModal} role="presentation">
+          <div className={`bg-white rounded-3xl w-full max-h-[90vh] overflow-y-auto shadow-[0_20px_60px_rgba(0,0,0,0.3)] ${modal === 'reserve' ? 'max-w-[1000px]' : 'max-w-[600px]'}`} onMouseDown={(event) => event.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="modal-title">
+            <div className="flex items-center justify-between px-7 pt-7 mb-2">
+              <h2 id="modal-title" className="text-2xl text-[#12314a] m-0">{modal === 'reserve' ? 'Book Your Appointment' : 'Send message'}</h2>
+              <button className="bg-none border-0 text-[#5d7388] cursor-pointer p-0 w-10 h-10 flex items-center justify-center hover:text-[#12314a]" onClick={closeModal} aria-label="Close"><X className="w-6 h-6" /></button>
+            </div>
+            {modal === 'reserve' ? (
+              <BookingWizard
+                services={services}
+                doctors={doctors}
+                form={reserveForm}
+                onChange={reservationChange}
+                onSubmit={() => submitReservation({ preventDefault: () => {} })}
+                isSubmitting={isSubmitting}
+                error={feedback?.type === 'error' ? feedback.text : null}
+                currentUser={currentUser?.patientId ? currentUser : null}
+              />
+            ) : (
+              <form onSubmit={submitContact} className="px-7 pb-7 flex flex-col gap-4">
+                <input className="px-4 py-3 border border-sky-500/30 rounded-xl text-base font-sans focus:outline-none focus:border-sky-500 focus:bg-sky-500/5 focus:shadow-[0_0_0_3px_rgba(14,165,233,0.1)]" name="name" placeholder="Your name" value={contactForm.name} onChange={contactChange} required />
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <input className="px-4 py-3 border border-sky-500/30 rounded-xl text-base font-sans focus:outline-none focus:border-sky-500 focus:bg-sky-500/5 focus:shadow-[0_0_0_3px_rgba(14,165,233,0.1)]" type="email" name="email" placeholder="Your email" value={contactForm.email} onChange={contactChange} required />
+                  <input className="px-4 py-3 border border-sky-500/30 rounded-xl text-base font-sans focus:outline-none focus:border-sky-500 focus:bg-sky-500/5 focus:shadow-[0_0_0_3px_rgba(14,165,233,0.1)]" type="tel" name="phone" placeholder="Phone (optional)" value={contactForm.phone} onChange={contactChange} />
+                </div>
+                <textarea className="px-4 py-3 border border-sky-500/30 rounded-xl text-base font-sans resize-y focus:outline-none focus:border-sky-500 focus:bg-sky-500/5 focus:shadow-[0_0_0_3px_rgba(14,165,233,0.1)]" name="message" placeholder="How can we help you?" value={contactForm.message} onChange={contactChange} rows="5" required />
+                <button type="submit" disabled={isSubmitting} className="ripple-btn mt-2 disabled:opacity-70 disabled:cursor-wait border-0 rounded-full px-5 py-3 font-bold cursor-pointer transition-transform hover:-translate-y-px bg-gradient-to-br from-sky-500 to-teal-500 text-white shadow-[0_12px_24px_rgba(20,184,166,0.22)]" onMouseDown={ripple}>{isSubmitting ? 'Sending…' : 'Send message'}</button>
+              </form>
+            )}
+          </div>
+        </div>
+      )}
+    </>
+  )
 }
 export default App

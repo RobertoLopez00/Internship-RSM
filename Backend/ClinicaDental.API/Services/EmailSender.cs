@@ -3,16 +3,18 @@ using System.Net.Mail;
 
 namespace ClinicaDental.API.Services;
 
-public interface IEmailSender { Task SendAsync(string recipient, string subject, string body, CancellationToken cancellationToken = default, bool isHtml = false); }
+public interface IEmailSender { Task SendAsync(string recipient, string subject, string body, CancellationToken cancellationToken = default, bool isHtml = false, string? replyTo = null); }
 
 public sealed class SmtpEmailSender(IConfiguration configuration, ILogger<SmtpEmailSender> logger) : IEmailSender
 {
-    public async Task SendAsync(string recipient, string subject, string body, CancellationToken cancellationToken = default, bool isHtml = false)
+    public async Task SendAsync(string recipient, string subject, string body, CancellationToken cancellationToken = default, bool isHtml = false, string? replyTo = null)
     {
         var settings = configuration.GetSection("Email");
+        // Lets email be disabled in dev/test environments without an SMTP server, while still logging intent.
         if (!settings.GetValue<bool>("Enabled")) { logger.LogInformation("Email disabled. Would send '{Subject}' to {Recipient}", subject, recipient); return; }
         using var client = new SmtpClient(settings["Host"], settings.GetValue<int>("Port")) { EnableSsl = settings.GetValue<bool>("UseSsl"), Credentials = new NetworkCredential(settings["Username"], settings["Password"]) };
         using var message = new MailMessage(settings["From"]!, recipient, subject, body) { IsBodyHtml = isHtml };
+        if (!string.IsNullOrWhiteSpace(replyTo)) message.ReplyToList.Add(replyTo);
         await client.SendMailAsync(message, cancellationToken);
     }
 }

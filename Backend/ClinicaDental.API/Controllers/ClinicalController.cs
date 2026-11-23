@@ -1,5 +1,7 @@
 using System.Security.Claims;
 using ClinicaDental.API.Contracts;
+using ClinicaDental.API.Services;
+using ClinicaDental.Application.Interfaces.Repositories;
 using ClinicaDental.Domain.Entities;
 using ClinicaDental.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Authorization;
@@ -9,29 +11,77 @@ using Microsoft.EntityFrameworkCore;
 namespace ClinicaDental.API.Controllers;
 
 [Authorize, ApiController, Route("api/patients/{patientId:guid}/record")]
-public class ClinicalController(AppDbContext context) : ControllerBase
+public class ClinicalController(IDentalRecordRepository records, AppDbContext context) : ControllerBase
 {
-    [HttpGet] public async Task<ActionResult<object>> Get(Guid patientId)
+    [HttpGet] public async Task<ActionResult<DentalRecordResponse>> Get(Guid patientId)
     {
         if (!await CanAccess(patientId)) return Forbid();
-        var record = await context.DentalRecords.AsNoTracking().Include(x => x.Consultations).ThenInclude(x => x.Doctor).SingleOrDefaultAsync(x => x.PatientId == patientId);
-        return record is null ? NotFound() : Ok(record);
+        var response = await LoadResponseAsync(patientId);
+        return response is null ? NotFound() : Ok(response);
     }
+
+    // Returns the whole record, consultations included, so the client can replace what it shows.
     [Authorize(Roles = $"{UserRoles.Admin},{UserRoles.Doctor}"), HttpPut]
-    public async Task<ActionResult<DentalRecord>> Upsert(Guid patientId, DentalRecordRequest request)
+    public async Task<ActionResult<DentalRecordResponse>> Upsert(Guid patientId, DentalRecordRequest request)
     {
-        var record = await context.DentalRecords.SingleOrDefaultAsync(x => x.PatientId == patientId);
-        if (record is null) { if (!await context.Patients.AnyAsync(x => x.Id == patientId)) return NotFound(); record = new DentalRecord { Id = Guid.NewGuid(), PatientId = patientId }; context.DentalRecords.Add(record); }
-        record.MedicalHistory = request.MedicalHistory?.Trim(); record.Allergies = request.Allergies?.Trim(); record.Medications = request.Medications?.Trim(); record.Observations = request.Observations?.Trim(); record.UpdatedAt = DateTime.UtcNow;
-        await context.SaveChangesAsync(); return Ok(record);
+        var record = await GetOrCreateRecordAsync(patientId);
+        if (record is null) return NotFound();
+        record.MedicalHistory = request.MedicalHistory?.Trim(); record.Allergies = request.Allergies?.Trim(); record.Medications = request.Medications?.Trim(); record.Observations = request.Observations?.Trim();
+        await records.SaveChangesAsync();
+        return Ok(await LoadResponseAsync(patientId));
     }
+
+    // The first consultation creates the dental record if the patient doesn't have one yet.
     [Authorize(Roles = $"{UserRoles.Admin},{UserRoles.Doctor}"), HttpPost("consultations")]
-    public async Task<ActionResult<Consultation>> AddConsultation(Guid patientId, ConsultationRequest request)
+    public async Task<ActionResult<ConsultationResponse>> AddConsultation(Guid patientId, ConsultationRequest request)
     {
-        var record = await context.DentalRecords.SingleOrDefaultAsync(x => x.PatientId == patientId); if (record is null) return BadRequest(new { message = "Create the dental record first." });
         if (!await context.Doctors.AnyAsync(x => x.Id == request.DoctorId)) return BadRequest(new { message = "Invalid doctor." });
-        var consultation = new Consultation { Id = Guid.NewGuid(), DentalRecordId = record.Id, DoctorId = request.DoctorId, ConsultationDate = request.ConsultationDate.ToUniversalTime(), Notes = request.Notes.Trim(), Diagnosis = request.Diagnosis?.Trim() };
-        context.Consultations.Add(consultation); await context.SaveChangesAsync(); return Ok(consultation);
+        if (request.AppointmentId is { } appointmentId)
+        {
+            var appointmentPatient = await context.Appointments.Where(x => x.Id == appointmentId).Select(x => (Guid?)x.PatientId).SingleOrDefaultAsync();
+            if (appointmentPatient is null) return BadRequest(new { message = "The appointment doesn't exist." });
+            if (appointmentPatient != patientId) return BadRequest(new { message = "The appointment belongs to another patient." });
+            if (await context.Consultations.AnyAsync(x => x.AppointmentId == appointmentId)) return Conflict(new { message = "That appointment already has a consultation." });
+        }
+
+        var record = await GetOrCreateRecordAsync(patientId);
+        if (record is null) return NotFound();
+        var consultation = new Consultation { Id = Guid.NewGuid(), DentalRecordId = record.Id, DoctorId = request.DoctorId, AppointmentId = request.AppointmentId, ConsultationDate = request.ConsultationDate.ToUtc(), Notes = request.Notes.Trim(), Diagnosis = request.Diagnosis?.Trim() };
+        await records.AddConsultationAsync(consultation);
+        consultation.Doctor = await context.Doctors.AsNoTracking().FirstOrDefaultAsync(x => x.Id == consultation.DoctorId);
+        return Ok(ConsultationResponse.From(consultation, await AuthorNamesAsync([consultation.CreatedByUserId])));
     }
+
+    private async Task<DentalRecordResponse?> LoadResponseAsync(Guid patientId)
+    {
+        var record = await records.GetWithConsultationsAsync(patientId);
+        if (record is null) return null;
+        var authorIds = record.Consultations.Select(c => c.CreatedByUserId).Append(record.CreatedByUserId).Append(record.UpdatedByUserId);
+        return DentalRecordResponse.From(record, await AuthorNamesAsync(authorIds));
+    }
+
+    // Display names of the logins that wrote clinical rows, for the "created by / updated by" trail.
+    private async Task<IReadOnlyDictionary<Guid, string>> AuthorNamesAsync(IEnumerable<Guid?> ids)
+    {
+        var wanted = ids.OfType<Guid>().Distinct().ToList();
+        if (wanted.Count == 0) return new Dictionary<Guid, string>();
+        var users = await context.Users.AsNoTracking().Include(x => x.Patient).Include(x => x.Doctor).Where(x => wanted.Contains(x.Id)).ToListAsync();
+        return users.ToDictionary(x => x.Id, x => x.GetDisplayName());
+    }
+
+    // Null when the patient doesn't exist. A new record is added but not saved.
+    private async Task<DentalRecord?> GetOrCreateRecordAsync(Guid patientId)
+    {
+        var record = await records.GetByPatientIdAsync(patientId);
+        if (record is not null) return record;
+        if (!await context.Patients.AnyAsync(x => x.Id == patientId)) return null;
+        record = new DentalRecord { Id = Guid.NewGuid(), PatientId = patientId };
+        await records.AddAsync(record);
+        return record;
+    }
+
+    // Admins and doctors can view any patient's dental record; a patient may only view their own,
+    // matched via the linked User.PatientId rather than trusting the route parameter directly.
+    // Still queries context directly for Patients/Doctors/Users checks — those belong to their own aggregates.
     private async Task<bool> CanAccess(Guid patientId) => User.IsInRole(UserRoles.Admin) || User.IsInRole(UserRoles.Doctor) || (User.FindFirstValue(ClaimTypes.NameIdentifier) is string id && await context.Users.AnyAsync(x => x.Id == Guid.Parse(id) && x.PatientId == patientId));
 }

@@ -1,47 +1,45 @@
+using ClinicaDental.Application.Common;
 using ClinicaDental.Application.Interfaces.Repositories;
 using ClinicaDental.Domain.Entities;
 using Microsoft.EntityFrameworkCore;
 
 namespace ClinicaDental.Infrastructure.Persistence;
 
-public class AppointmentRepository : IAppointmentRepository
+public class AppointmentRepository(AppDbContext context) : IAppointmentRepository
 {
-    private readonly AppDbContext _context;
+    private IQueryable<Appointment> WithDetails => context.Appointments.AsNoTracking()
+        .Include(a => a.Patient).Include(a => a.Doctor).ThenInclude(d => d!.Specialty).Include(a => a.Service);
 
-    public AppointmentRepository(AppDbContext context)
+    public async Task<PagedResult<Appointment>> ListAsync(Guid? patientId, PageRequest? page)
     {
-        _context = context;
+        var query = WithDetails.Where(a => patientId == null || a.PatientId == patientId);
+        var total = await query.CountAsync();
+        var ordered = query.OrderByDescending(a => a.AppointmentDate).ThenBy(a => a.Id);
+        var items = page is null ? await ordered.ToListAsync() : await ordered.Skip(page.Skip).Take(page.PageSize).ToListAsync();
+        return new PagedResult<Appointment>(items, total);
     }
 
-    public async Task<IEnumerable<Appointment>> GetAllAsync()
+    public Task<Appointment?> GetDetailsAsync(Guid id) => WithDetails.FirstOrDefaultAsync(a => a.Id == id);
+
+    public Task<Appointment?> GetByIdAsync(Guid id) => context.Appointments.FirstOrDefaultAsync(a => a.Id == id);
+
+    public Task<bool> DoctorBusyAsync(Guid doctorId, DateTime start, DateTime end, Guid? exceptId) =>
+        context.Appointments.AnyAsync(x => x.DoctorId == doctorId && x.Id != exceptId
+            && x.Status != AppointmentStatus.Cancelled && x.Status != AppointmentStatus.NoShow
+            && x.AppointmentDate < end && x.EndsAt > start);
+
+    public Task<bool> PatientBusyAsync(Guid patientId, DateTime start, DateTime end, Guid? exceptId) =>
+        context.Appointments.AnyAsync(x => x.PatientId == patientId && x.Id != exceptId
+            && x.Status != AppointmentStatus.Cancelled && x.Status != AppointmentStatus.NoShow
+            && x.AppointmentDate < end && x.EndsAt > start);
+
+    public async Task AddAsync(Appointment appointment) => await context.Appointments.AddAsync(appointment);
+
+    public async Task DeleteAsync(Appointment appointment)
     {
-        return await _context.Appointments.AsNoTracking().ToListAsync();
+        context.Appointments.Remove(appointment);
+        await context.SaveChangesAsync();
     }
 
-    public async Task<Appointment?> GetByIdAsync(Guid id)
-    {
-        return await _context.Appointments.FirstOrDefaultAsync(a => a.Id == id);
-    }
-
-    public async Task AddAsync(Appointment appointment)
-    {
-        await _context.Appointments.AddAsync(appointment);
-        await _context.SaveChangesAsync();
-    }
-
-    public async Task UpdateAsync(Appointment appointment)
-    {
-        _context.Appointments.Update(appointment);
-        await _context.SaveChangesAsync();
-    }
-
-    public async Task DeleteAsync(Guid id)
-    {
-        var appointment = await _context.Appointments.FindAsync(id);
-        if (appointment is not null)
-        {
-            _context.Appointments.Remove(appointment);
-            await _context.SaveChangesAsync();
-        }
-    }
+    public Task SaveChangesAsync() => context.SaveChangesAsync();
 }

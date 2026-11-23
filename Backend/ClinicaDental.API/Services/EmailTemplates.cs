@@ -15,7 +15,7 @@ public static class EmailTemplates
         rows:
         [
             ("Date & time", appointmentDate),
-            ("Doctor", $"Dr. {Escape(doctorName)}"),
+            ("Doctor", $"Dr. {doctorName}"),
         ],
         notes: notes,
         footerNote: "We'll send you a reminder 24 hours before your visit.");
@@ -26,12 +26,25 @@ public static class EmailTemplates
         rows:
         [
             ("Date & time", appointmentDate),
-            ("Doctor", $"Dr. {Escape(doctorName)}"),
+            ("Doctor", $"Dr. {doctorName}"),
         ],
         notes: null,
         footerNote: "See you soon! If you need to reschedule, please contact the clinic.");
 
-    private static string Layout(string heading, string intro, (string Label, string Value)[] rows, string? notes, string footerNote)
+    public static string ContactMessage(string name, string email, string? phone, string message) => Layout(
+        heading: "New message from the website",
+        intro: $"{Escape(name)} sent a message through the contact form. Reply to this email to answer them.",
+        rows:
+        [
+            ("Name", name),
+            ("Email", email),
+            ("Phone", string.IsNullOrWhiteSpace(phone) ? "Not provided" : phone),
+        ],
+        notes: message,
+        footerNote: "Sent from the contact form on the DentalCare website.",
+        automated: false);
+
+    private static string Layout(string heading, string intro, (string Label, string Value)[] rows, string? notes, string footerNote, bool automated = true)
     {
         var rowsHtml = string.Join("", rows.Select(r => $"""
             <tr>
@@ -78,7 +91,7 @@ public static class EmailTemplates
                       </tr>
                       <tr>
                         <td style="padding:20px 32px;background:{BrandBg};border-top:1px solid {BrandBorder};">
-                          <p style="margin:0;color:{BrandMuted};font-size:12px;">DentalCare · This is an automated message, please do not reply.</p>
+                          <p style="margin:0;color:{BrandMuted};font-size:12px;">DentalCare{(automated ? " · This is an automated message, please do not reply." : "")}</p>
                         </td>
                       </tr>
                     </table>

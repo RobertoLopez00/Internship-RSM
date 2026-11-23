@@ -2,13 +2,24 @@ services:
   sqlserver:
     image: mcr.microsoft.com/mssql/server:2022-latest
     container_name: clinica-dental-sql
+    restart: unless-stopped
     environment:
       ACCEPT_EULA: "Y"
-      MSSQL_SA_PASSWORD: "YourPassword123"
+      MSSQL_SA_PASSWORD: "${SQL_SA_PASSWORD:-YourPassword123}"
     ports:
       - "1433:1433"
     volumes:
       - sqlserver_data:/var/opt/mssql
+
+  # Fake SMTP server for `dotnet run`: the API's Email:Host/Port user secrets point at localhost:1025,
+  # so without this container every confirmation email fails. Sent mail is visible at http://localhost:8025.
+  mailpit:
+    image: axllent/mailpit:latest
+    container_name: clinica-dental-mail
+    restart: unless-stopped
+    ports:
+      - "8025:8025"
+      - "1025:1025"
 
 volumes:
   sqlserver_data:

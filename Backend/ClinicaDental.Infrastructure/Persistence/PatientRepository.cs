@@ -1,47 +1,41 @@
+using ClinicaDental.Application.Common;
 using ClinicaDental.Application.Interfaces.Repositories;
 using ClinicaDental.Domain.Entities;
 using Microsoft.EntityFrameworkCore;
 
 namespace ClinicaDental.Infrastructure.Persistence;
 
-public class PatientRepository : IPatientRepository
+public class PatientRepository(AppDbContext context) : IPatientRepository
 {
-    private readonly AppDbContext _context;
-
-    public PatientRepository(AppDbContext context)
+    public async Task<PagedResult<Patient>> ListAsync(PageRequest? page)
     {
-        _context = context;
+        var total = await context.Patients.CountAsync();
+        var ordered = context.Patients.AsNoTracking().OrderBy(p => p.LastName).ThenBy(p => p.FirstName).ThenBy(p => p.Id);
+        var items = page is null ? await ordered.ToListAsync() : await ordered.Skip(page.Skip).Take(page.PageSize).ToListAsync();
+        return new PagedResult<Patient>(items, total);
     }
 
-    public async Task<IEnumerable<Patient>> GetAllAsync()
+    // Tracked because callers edit the result.
+    public Task<Patient?> GetByIdAsync(Guid id) => context.Patients.FirstOrDefaultAsync(p => p.Id == id);
+
+    public Task<bool> EmailInUseAsync(string email, Guid? exceptId = null) =>
+        context.Patients.AnyAsync(p => p.Email == email && p.Id != exceptId);
+
+    public Task<bool> HasUpcomingAppointmentsAsync(Guid id)
     {
-        return await _context.Patients.AsNoTracking().ToListAsync();
+        var now = DateTime.UtcNow;
+        return context.Appointments.AnyAsync(a => a.PatientId == id && a.AppointmentDate > now
+            && (a.Status == AppointmentStatus.Pending || a.Status == AppointmentStatus.Confirmed));
     }
 
-    public async Task<Patient?> GetByIdAsync(Guid id)
+    public async Task AddAsync(Patient patient) => await context.Patients.AddAsync(patient);
+
+    public async Task SetActiveAsync(Patient patient, bool isActive)
     {
-        return await _context.Patients.FirstOrDefaultAsync(p => p.Id == id);
+        patient.IsActive = isActive;
+        var login = await context.Users.FirstOrDefaultAsync(u => u.PatientId == patient.Id);
+        if (login is not null) login.IsActive = isActive;
     }
 
-    public async Task AddAsync(Patient patient)
-    {
-        await _context.Patients.AddAsync(patient);
-        await _context.SaveChangesAsync();
-    }
-
-    public async Task UpdateAsync(Patient patient)
-    {
-        _context.Patients.Update(patient);
-        await _context.SaveChangesAsync();
-    }
-
-    public async Task DeleteAsync(Guid id)
-    {
-        var patient = await _context.Patients.FindAsync(id);
-        if (patient is not null)
-        {
-            _context.Patients.Remove(patient);
-            await _context.SaveChangesAsync();
-        }
-    }
+    public Task SaveChangesAsync() => context.SaveChangesAsync();
 }
